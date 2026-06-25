@@ -1,3 +1,18 @@
+// DNS lookup patch to force IPv4 and bypass node-fetch timeout bug
+const dns = require('dns');
+const originalLookup = dns.lookup;
+dns.lookup = function (hostname, options, callback) {
+  if (typeof options === 'function') {
+    callback = options;
+    options = { family: 4 };
+  } else if (!options) {
+    options = { family: 4 };
+  } else if (typeof options === 'object' && options.family === undefined) {
+    options.family = 4;
+  }
+  return originalLookup.call(dns, hostname, options, callback);
+};
+
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
