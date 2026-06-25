@@ -314,6 +314,7 @@ exports.handleWhatsAppWebhook = async (req, res) => {
 
   // Handle incoming message
   try {
+    console.log('Incoming WhatsApp Webhook Payload:', JSON.stringify(req.body, null, 2));
     const entry = req.body.entry;
     if (entry && entry[0] && entry[0].changes && entry[0].changes[0] && entry[0].changes[0].value.messages) {
       const message = entry[0].changes[0].value.messages[0];
