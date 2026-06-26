@@ -36,6 +36,15 @@ const User = sequelize.define('User', {
   password: {
     type: DataTypes.STRING,
     allowNull: true // Only needed for dashboard admin accounts
+  },
+  is_registered: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false // true after user completes registration (gives their name)
+  },
+  session_data: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: null // Stores active quiz/module-selection state
   }
 }, {
   timestamps: true,

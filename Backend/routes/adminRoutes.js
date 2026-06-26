@@ -23,5 +23,11 @@ router.post('/stories', verifyToken, isAdmin, adminController.createStory);
 router.put('/stories/:id', verifyToken, isAdmin, adminController.updateStory);
 router.delete('/stories/:id', verifyToken, isAdmin, adminController.deleteStory);
 
+// Analytics
+router.get('/analytics', verifyToken, isAdmin, adminController.getAnalytics);
+
+// Broadcast — Send WhatsApp message to all users
+router.post('/broadcast', verifyToken, isAdmin, adminController.broadcastMessage);
+
 module.exports = router;
 

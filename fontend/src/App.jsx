@@ -12,7 +12,9 @@ import {
   History,
   FileText,
   Smartphone,
-  Trash2
+  Trash2,
+  BarChart2,
+  Megaphone
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -34,6 +36,12 @@ export default function App() {
   const [quizzes, setQuizzes] = useState([]);
   const [stories, setStories] = useState([]);
   const [users, setUsers] = useState([]);
+  const [analytics, setAnalytics] = useState(null);
+
+  // Broadcast state
+  const [broadcastMsg, setBroadcastMsg] = useState('');
+  const [broadcastStatus, setBroadcastStatus] = useState('');
+  const [broadcastLoading, setBroadcastLoading] = useState(false);
   
   // Loaders
   const [loading, setLoading] = useState(false);
@@ -131,6 +139,41 @@ export default function App() {
       const data = await res.json();
       if (res.ok) setUsers(data);
     } catch (err) { console.error(err); }
+  };
+
+  // Load analytics
+  const fetchAnalytics = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/analytics`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setAnalytics(data);
+    } catch (err) { console.error(err); }
+  };
+
+  // Broadcast handler
+  const handleBroadcast = async (e) => {
+    e.preventDefault();
+    if (!broadcastMsg.trim()) return;
+    setBroadcastLoading(true);
+    setBroadcastStatus('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/broadcast`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ message: broadcastMsg })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setBroadcastStatus(`✅ ${data.message}`);
+        setBroadcastMsg('');
+      } else {
+        setBroadcastStatus(`❌ ${data.message}`);
+      }
+    } catch { setBroadcastStatus('❌ Hitilafu ya muunganisho na seva.'); }
+    finally { setBroadcastLoading(false); }
   };
 
   useEffect(() => {
@@ -494,6 +537,22 @@ export default function App() {
             onClick={() => { setActiveTab('users'); fetchUsers(); }}
           >
             <Users size={18} /> Watumiaji
+          </button>
+
+          <button
+            className={`btn ${activeTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+            onClick={() => { setActiveTab('analytics'); fetchAnalytics(); }}
+          >
+            <BarChart2 size={18} /> Analytics
+          </button>
+
+          <button
+            className={`btn ${activeTab === 'broadcast' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+            onClick={() => setActiveTab('broadcast')}
+          >
+            <Megaphone size={18} /> Tuma Tangazo
           </button>
         </nav>
 
@@ -1345,6 +1404,181 @@ export default function App() {
             </div>
           </div>
         )}
+
+        {/* TAB 6: ANALYTICS */}
+        {activeTab === 'analytics' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <div>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Analytics ya Mfumo</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Takwimu za kina za matumizi, ukuaji wa watumiaji, na ufanisi wa quiz.</p>
+            </div>
+
+            {/* Summary KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+              {[
+                { label: 'Waliojisajili', value: analytics?.summary?.totalRegistered ?? '—', color: 'var(--primary)' },
+                { label: 'Hawajajisajili', value: analytics?.summary?.totalUnregistered ?? '—', color: 'var(--warning)' },
+                { label: 'Majaribio ya Quiz', value: analytics?.summary?.totalQuizAttempts ?? '—', color: 'var(--secondary)' },
+                { label: 'Alama za Wastani', value: analytics?.summary?.avgScore ? `${analytics.summary.avgScore} pts` : '—', color: 'var(--success)' },
+              ].map(card => (
+                <div key={card.label} className="glass-card" style={{ textAlign: 'center' }}>
+                  <div style={{ fontSize: '2rem', fontWeight: 800, color: card.color }}>{card.value}</div>
+                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{card.label}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* New Users Per Day */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <BarChart2 style={{ color: 'var(--primary)' }} size={20} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Watumiaji Wapya — Siku 14 Zilizopita</h3>
+              </div>
+              {analytics?.newUsersPerDay?.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px' }}>
+                  {analytics.newUsersPerDay.map(d => {
+                    const max = Math.max(...analytics.newUsersPerDay.map(x => parseInt(x.count)), 1);
+                    const pct = (parseInt(d.count) / max) * 100;
+                    return (
+                      <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{d.count}</div>
+                        <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: 'var(--primary)', borderRadius: '4px 4px 0 0', opacity: 0.85 }} />
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{d.date?.slice(5)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Hakuna data ya kutosha bado.</p>}
+            </div>
+
+            {/* Messages Per Day */}
+            <div className="glass-card">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <MessageSquare style={{ color: 'var(--secondary)' }} size={20} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ujumbe kwa Siku — Siku 14 Zilizopita</h3>
+              </div>
+              {analytics?.messagesPerDay?.length > 0 ? (
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px' }}>
+                  {analytics.messagesPerDay.map(d => {
+                    const max = Math.max(...analytics.messagesPerDay.map(x => parseInt(x.count)), 1);
+                    const pct = (parseInt(d.count) / max) * 100;
+                    return (
+                      <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{d.count}</div>
+                        <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: 'var(--secondary)', borderRadius: '4px 4px 0 0', opacity: 0.85 }} />
+                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{d.date?.slice(5)}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Hakuna data ya kutosha bado.</p>}
+            </div>
+
+            {/* Peak Hours + Channel Breakdown */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div className="glass-card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>⏰ Masaa ya Kilele cha Matumizi</h3>
+                {analytics?.peakHours?.slice(0, 5).map((h, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Saa {String(Math.round(h.hour)).padStart(2,'0')}:00</span>
+                    <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{h.count} msg</span>
+                  </div>
+                ))}
+                {!analytics?.peakHours?.length && <p style={{ color: 'var(--text-muted)' }}>Hakuna data.</p>}
+              </div>
+
+              <div className="glass-card">
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>📡 Chaneli za Mawasiliano</h3>
+                {analytics?.channelBreakdown?.map((ch, i) => (
+                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <span className={`badge badge-${ch.channel}`}>{ch.channel}</span>
+                    <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>{ch.count} ujumbe</span>
+                  </div>
+                ))}
+                {!analytics?.channelBreakdown?.length && <p style={{ color: 'var(--text-muted)' }}>Hakuna data.</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 7: BROADCAST */}
+        {activeTab === 'broadcast' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <div>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Tuma Tangazo</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Tuma ujumbe moja kwa wakati mmoja kwa watumiaji wote wa WhatsApp waliojisajili.</p>
+            </div>
+
+            <div className="glass-card" style={{ maxWidth: '600px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+                <Megaphone style={{ color: 'var(--warning)' }} size={22} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Andika Ujumbe wa Tangazo</h3>
+              </div>
+
+              <div style={{
+                background: 'rgba(245,158,11,0.08)',
+                border: '1px solid rgba(245,158,11,0.3)',
+                borderRadius: '10px',
+                padding: '14px',
+                marginBottom: '20px',
+                fontSize: '0.85rem',
+                color: 'var(--warning)'
+              }}>
+                ⚠️ <strong>Tahadhari:</strong> Ujumbe huu utapelekwa kwa watumiaji <strong>wote</strong> wa WhatsApp waliojisajili. Hakikisha ujumbe ni sahihi kabla ya kutuma.
+              </div>
+
+              <form onSubmit={handleBroadcast}>
+                <div className="input-group">
+                  <label className="input-label">Ujumbe wa Tangazo</label>
+                  <textarea
+                    className="input-field"
+                    rows={6}
+                    placeholder="Andika ujumbe wako hapa...&#10;Mfano: Leo ni Siku ya Muungano! Jibu QUIZ kupata alama mara mbili! 🇹🇿"
+                    style={{ resize: 'vertical' }}
+                    value={broadcastMsg}
+                    onChange={e => setBroadcastMsg(e.target.value)}
+                    required
+                  />
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    {broadcastMsg.length} / 1000 herufi
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '8px', padding: '12px', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
+                  <strong>Muundo wa ujumbe utakaotumwa:</strong><br />
+                  📢 <em>Tangazo la MUUNGANO WETU AI</em><br />
+                  {broadcastMsg || '...'}<br />
+                  <em>— Timu ya Muungano Wetu AI 🇹🇿</em>
+                </div>
+
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%' }}
+                  disabled={broadcastLoading || broadcastMsg.trim().length < 5}
+                >
+                  {broadcastLoading ? 'Inatuma...' : '📢 Tuma kwa Watumiaji Wote'}
+                </button>
+              </form>
+
+              {broadcastStatus && (
+                <div style={{
+                  marginTop: '16px',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  fontSize: '0.9rem',
+                  background: broadcastStatus.startsWith('✅') ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                  color: broadcastStatus.startsWith('✅') ? 'var(--success)' : 'var(--error)',
+                  border: `1px solid ${broadcastStatus.startsWith('✅') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`
+                }}>
+                  {broadcastStatus}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </main>
     </div>
   );

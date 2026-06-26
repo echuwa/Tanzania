@@ -65,6 +65,9 @@ async function startServer() {
 
     app.listen(PORT, () => {
       console.log(`Server is running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+      // Start the daily reminder scheduler
+      const { startScheduler } = require('./services/schedulerService');
+      startScheduler();
     });
   } catch (error) {
     console.error('Unable to connect to the database and start server:', error);

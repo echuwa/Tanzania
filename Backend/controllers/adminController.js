@@ -1,6 +1,8 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
 const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, sequelize } = require('../models');
+const whatsappService = require('../services/whatsappService');
 
 // 1. Admin Login
 exports.login = async (req, res) => {
@@ -278,5 +280,143 @@ exports.getUsers = async (req, res) => {
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).json({ message: 'Imefeli kupata orodha ya watumiaji' });
+  }
+};
+
+// 13. Analytics — New users per day (last 14 days), quiz rates, peak hours, channels
+exports.getAnalytics = async (req, res) => {
+  try {
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    // New users per day (last 14 days)
+    const newUsersRaw = await User.findAll({
+      where: { role: 'user', createdAt: { [Op.gte]: fourteenDaysAgo } },
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+      order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
+      raw: true
+    });
+
+    // Messages per day (last 14 days)
+    const messagesPerDayRaw = await ChatLog.findAll({
+      where: { createdAt: { [Op.gte]: fourteenDaysAgo } },
+      attributes: [
+        [sequelize.fn('DATE', sequelize.col('createdAt')), 'date'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: [sequelize.fn('DATE', sequelize.col('createdAt'))],
+      order: [[sequelize.fn('DATE', sequelize.col('createdAt')), 'ASC']],
+      raw: true
+    });
+
+    // Peak hours of activity (0-23)
+    const peakHoursRaw = await ChatLog.findAll({
+      attributes: [
+        [sequelize.fn('EXTRACT', sequelize.literal('HOUR FROM "createdAt"')), 'hour'],
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: [sequelize.fn('EXTRACT', sequelize.literal('HOUR FROM "createdAt"'))],
+      order: [[sequelize.fn('COUNT', sequelize.col('id')), 'DESC']],
+      limit: 24,
+      raw: true
+    });
+
+    // Quiz completion rate per module
+    const moduleStats = await Module.findAll({
+      attributes: ['id', 'title', 'order_index'],
+      include: [{
+        model: QuizAttempt,
+        attributes: []
+      }],
+      attributes: [
+        'id', 'title', 'order_index',
+        [sequelize.fn('COUNT', sequelize.col('QuizAttempts.id')), 'attempt_count']
+      ],
+      group: ['Module.id'],
+      order: [['order_index', 'ASC']],
+      raw: true
+    });
+
+    // Channel breakdown
+    const channelBreakdown = await ChatLog.findAll({
+      attributes: [
+        'channel',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['channel'],
+      raw: true
+    });
+
+    // Total registered vs unregistered
+    const totalRegistered = await User.count({ where: { role: 'user', is_registered: true } });
+    const totalUnregistered = await User.count({ where: { role: 'user', is_registered: false } });
+    const totalQuizAttempts = await QuizAttempt.count();
+    const avgScore = await QuizAttempt.findOne({
+      attributes: [[sequelize.fn('AVG', sequelize.col('score')), 'avg_score']],
+      raw: true
+    });
+
+    res.json({
+      newUsersPerDay: newUsersRaw,
+      messagesPerDay: messagesPerDayRaw,
+      peakHours: peakHoursRaw,
+      moduleStats,
+      channelBreakdown,
+      summary: {
+        totalRegistered,
+        totalUnregistered,
+        totalQuizAttempts,
+        avgScore: parseFloat(avgScore?.avg_score || 0).toFixed(1)
+      }
+    });
+  } catch (error) {
+    console.error('Error getting analytics:', error);
+    res.status(500).json({ message: 'Hitilafu wakati wa kupata takwimu za analytics' });
+  }
+};
+
+// 14. Broadcast — Admin sends a WhatsApp message to ALL registered users
+exports.broadcastMessage = async (req, res) => {
+  const { message } = req.body;
+
+  if (!message || message.trim().length < 5) {
+    return res.status(400).json({ message: 'Tafadhali andika ujumbe wa angalau herufi 5' });
+  }
+
+  try {
+    const users = await User.findAll({
+      where: { role: 'user', is_registered: true },
+      attributes: ['full_name', 'phone_number']
+    });
+
+    const whatsappUsers = users.filter(u => u.phone_number);
+
+    if (whatsappUsers.length === 0) {
+      return res.status(404).json({ message: 'Hakuna watumiaji wa WhatsApp waliopo' });
+    }
+
+    // Respond to admin immediately with count
+    res.json({
+      message: `Ujumbe unatumwa kwa watumiaji ${whatsappUsers.length}. Itachukua dakika chache.`,
+      total: whatsappUsers.length
+    });
+
+    // Send in background with delay to respect Meta rate limits
+    let sent = 0;
+    for (const user of whatsappUsers) {
+      const personalizedMsg = `📢 *Tangazo la MUUNGANO WETU AI*\n\n${message}\n\n_— Timu ya Muungano Wetu AI 🇹🇿_`;
+      const result = await whatsappService.sendWhatsAppMessage(user.phone_number, personalizedMsg);
+      if (result.success) sent++;
+      await new Promise(r => setTimeout(r, 600)); // 600ms delay between sends
+    }
+
+    console.log(`[Broadcast] ✅ Complete — ${sent}/${whatsappUsers.length} delivered`);
+  } catch (error) {
+    console.error('Error broadcasting message:', error);
+    // res already sent, just log
   }
 };
