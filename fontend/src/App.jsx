@@ -84,7 +84,7 @@ export default function App() {
   const [simChat, setSimChat] = useState([
     {
       sender: 'bot',
-      text: 'Habari ya kijana! Karibu kwenye **MUUNGANO WETU AI** 🇹🇿. Mimi ni msaidizi wako wa akili bandia wa kuelimisha kuhusu Muungano wetu mtukufu. unaweza:\n1. Kuniuliza swali lolote kuhusu historia ya Muungano.\n2. Kuandika **QUIZ** kuanza mchezo wa maswali na kupata pointi.\n3. Kuandika **HADITHI** kupata hadithi ya leo ya kihistoria.',
+      text: 'Greetings! Welcome to **MUUNGANO WETU AI** 🇹🇿. I am your AI assistant dedicated to educating you about our glorious Union. You can:\n1. Ask me any question about the history of the Union.\n2. Type **QUIZ** to start the trivia game and earn points.\n3. Type **STORY** to receive today\'s historical lesson.',
       time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     }
   ]);
@@ -235,10 +235,10 @@ export default function App() {
         setToken(data.token);
         setAdmin(data.admin);
       } else {
-        setAuthError(data.message || 'Kuingia kumeshindikana. Angalia email na password.');
+        setAuthError(data.message || 'Login failed. Please check your email and password.');
       }
     } catch (err) {
-      setAuthError('Muunganisho na seva umefeli.');
+      setAuthError('Connection to server failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -246,13 +246,13 @@ export default function App() {
 
   const handleLogout = async () => {
     const result = await Swal.fire({
-      title: 'Unataka Kuondoka?',
-      text: 'Utahitaji kuingia tena ili kurudi kwenye Dashibodi.',
+      title: 'Sign Out?',
+      text: 'You will need to log in again to access the Dashboard.',
       icon: 'warning',
       iconColor: '#f59e0b',
       showCancelButton: true,
-      confirmButtonText: '🚪 Ndiyo, Niondoe',
-      cancelButtonText: 'Bado Hapo',
+      confirmButtonText: '🚪 Yes, Sign Me Out',
+      cancelButtonText: 'Stay Here',
       background: '#1a1a2e',
       color: '#e2e8f0',
       confirmButtonColor: '#ef4444',
@@ -273,13 +273,13 @@ export default function App() {
   // Delete single Chat Log
   const handleDeleteChatLog = async (id) => {
     const result = await Swal.fire({
-      title: 'Futa Ujumbe Huu?',
-      text: 'Ujumbe huu utafutwa kabisa na hautaweza kurudishwa.',
+      title: 'Delete This Message?',
+      text: 'This message will be permanently deleted and cannot be recovered.',
       icon: 'question',
       iconColor: '#ef4444',
       showCancelButton: true,
-      confirmButtonText: '🗑️ Ndiyo, Futa',
-      cancelButtonText: 'Acha',
+      confirmButtonText: '🗑️ Yes, Delete',
+      cancelButtonText: 'Cancel',
       background: '#1a1a2e',
       color: '#e2e8f0',
       confirmButtonColor: '#ef4444',
@@ -293,7 +293,7 @@ export default function App() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        await Swal.fire({ title: 'Imefutwa!', text: 'Ujumbe umefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        await Swal.fire({ title: 'Deleted!', text: 'Message deleted successfully.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
         fetchStats();
       }
     } catch (err) { console.error(err); }
@@ -329,7 +329,7 @@ export default function App() {
       } else {
         setAdminStatus(`❌ ${data.message}`);
       }
-    } catch { setAdminStatus('❌ Hitilafu ya muunganisho na seva.'); }
+    } catch { setAdminStatus('❌ Server connection error. Please try again.'); }
   };
 
   // Create Module
@@ -351,12 +351,12 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setFormMessage('Moduli imeundwa kwa mafanikio! ✅');
+        setFormMessage('Module created successfully! ✅');
         setNewModule({ title: '', description: '', order_index: '' });
         fetchQuizzes();
         fetchStats();
       } else {
-        setFormMessage(`Imefeli: ${data.message}`);
+        setFormMessage(`Failed: ${data.message}`);
       }
     } catch (err) {
       setFormMessage('Error communicating with backend.');
@@ -389,7 +389,7 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setFormMessage('Swali limeundwa kwa mafanikio! ✅');
+        setFormMessage('Question created successfully! ✅');
         setNewQuestion(prev => ({
           ...prev,
           question_text: '',
@@ -402,7 +402,7 @@ export default function App() {
         fetchQuizzes();
         fetchStats();
       } else {
-        setFormMessage(`Imefeli: ${data.message}`);
+        setFormMessage(`Failed: ${data.message}`);
       }
     } catch (err) {
       setFormMessage('Error communicating with backend.');
@@ -424,11 +424,11 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) {
-        setFormMessage('Hadithi ya leo imesajiliwa! ✅');
+        setFormMessage('Daily story published successfully! ✅');
         setNewStory({ title: '', content: '', publish_date: '' });
         fetchStories();
       } else {
-        setFormMessage(`Imefeli: ${data.message}`);
+        setFormMessage(`Failed: ${data.message}`);
       }
     } catch (err) {
       setFormMessage('Error communicating with backend.');
@@ -438,13 +438,13 @@ export default function App() {
   // Delete Module
   const handleDeleteModule = async (id, title) => {
     const result = await Swal.fire({
-      title: 'Futa Moduli Hii?',
-      html: `Moduli <strong>"${title}"</strong> na <strong>maswali yake yote</strong> zitafutwa kabisa!`,
+      title: 'Delete This Module?',
+      html: `Module <strong>"${title}"</strong> and <strong>all its questions</strong> will be permanently deleted!`,
       icon: 'warning',
       iconColor: '#ef4444',
       showCancelButton: true,
-      confirmButtonText: '🗑️ Ndiyo, Futa Kabisa',
-      cancelButtonText: 'Hapana, Rudi',
+      confirmButtonText: '🗑️ Yes, Delete Permanently',
+      cancelButtonText: 'No, Go Back',
       background: '#1a1a2e',
       color: '#e2e8f0',
       confirmButtonColor: '#ef4444',
@@ -458,22 +458,22 @@ export default function App() {
       });
       const d = await res.json();
       if (res.ok) {
-        Swal.fire({ title: 'Imefutwa!', text: 'Moduli imefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        Swal.fire({ title: 'Deleted!', text: 'Module deleted successfully.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
         fetchQuizzes(); fetchStats();
-      } else setFormMessage(`Imefeli: ${d.message}`);
-    } catch { setFormMessage('Hitilafu ya muunganisho.'); }
+      } else setFormMessage(`Failed: ${d.message}`);
+    } catch { setFormMessage('Connection error. Please try again.'); }
   };
 
   // Delete Question
   const handleDeleteQuestion = async (id) => {
     const result = await Swal.fire({
-      title: 'Futa Swali Hili?',
-      text: 'Swali hili litafutwa kabisa. Hatua hii haiwezi kurudishwa.',
+      title: 'Delete This Question?',
+      text: 'This question will be permanently deleted. This action cannot be undone.',
       icon: 'warning',
       iconColor: '#f59e0b',
       showCancelButton: true,
-      confirmButtonText: '🗑️ Futa Swali',
-      cancelButtonText: 'Hapana',
+      confirmButtonText: '🗑️ Delete Question',
+      cancelButtonText: 'Cancel',
       background: '#1a1a2e',
       color: '#e2e8f0',
       confirmButtonColor: '#ef4444',
@@ -487,22 +487,22 @@ export default function App() {
       });
       const d = await res.json();
       if (res.ok) {
-        Swal.fire({ title: 'Imefutwa!', text: 'Swali limefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        Swal.fire({ title: 'Deleted!', text: 'Question deleted successfully.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
         fetchQuizzes(); fetchStats();
-      } else setFormMessage(`Imefeli: ${d.message}`);
-    } catch { setFormMessage('Hitilafu ya muunganisho.'); }
+      } else setFormMessage(`Failed: ${d.message}`);
+    } catch { setFormMessage('Connection error. Please try again.'); }
   };
 
   // Delete Story
   const handleDeleteStory = async (id, title) => {
     const result = await Swal.fire({
-      title: 'Futa Hadithi Hii?',
-      html: `Hadithi <strong>"${title}"</strong> itafutwa kabisa!`,
+      title: 'Delete This Story?',
+      html: `Story <strong>"${title}"</strong> will be permanently deleted!`,
       icon: 'warning',
       iconColor: '#f59e0b',
       showCancelButton: true,
-      confirmButtonText: '🗑️ Ndiyo, Futa',
-      cancelButtonText: 'Hapana, Rudi',
+      confirmButtonText: '🗑️ Yes, Delete',
+      cancelButtonText: 'No, Go Back',
       background: '#1a1a2e',
       color: '#e2e8f0',
       confirmButtonColor: '#ef4444',
@@ -516,10 +516,10 @@ export default function App() {
       });
       const d = await res.json();
       if (res.ok) {
-        Swal.fire({ title: 'Imefutwa!', text: 'Hadithi imefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        Swal.fire({ title: 'Deleted!', text: 'Story deleted successfully.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
         fetchStories();
-      } else setFormMessage(`Imefeli: ${d.message}`);
-    } catch { setFormMessage('Hitilafu ya muunganisho.'); }
+      } else setFormMessage(`Failed: ${d.message}`);
+    } catch { setFormMessage('Connection error. Please try again.'); }
   };
 
   // Send Mock Chatbot Message
@@ -546,7 +546,7 @@ export default function App() {
       });
       const data = await res.json();
       
-      const botReply = res.ok ? data.reply : 'Hitilafu ya chatbot wakati wa kuwasiliana na AI.';
+      const botReply = res.ok ? data.reply : 'Chatbot error occurred while communicating with AI.';
       
       // Add chatbot reply to UI chat log
       setSimChat(prev => [...prev, {
@@ -557,7 +557,7 @@ export default function App() {
     } catch (err) {
       setSimChat(prev => [...prev, {
         sender: 'bot',
-        text: '⚠️ Imefeli kuungana na seva ya Chatbot.',
+        text: '⚠️ Failed to connect to the Chatbot server.',
         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
       }]);
     }
@@ -566,49 +566,44 @@ export default function App() {
   // Render Login Component
   if (!token) {
     return (
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: '100vh',
-        padding: '20px'
-      }}>
-        <div className="glass-card animate-fade-in" style={{ width: '100%', maxWidth: '400px' }}>
-          <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-            <div style={{
-              display: 'inline-flex',
-              padding: '12px',
-              borderRadius: '50%',
-              background: 'var(--primary-glow)',
-              color: 'var(--primary)',
-              marginBottom: '16px'
-            }}>
-              <Sparkles size={32} />
+      <div className="login-wrapper">
+        {/* Futuristic background components */}
+        <div className="login-orb-1"></div>
+        <div className="login-orb-2"></div>
+        <div className="login-grid"></div>
+
+        <div className="login-card animate-fade-in">
+          <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+            <div className="login-header-glow">
+              <Sparkles size={28} />
             </div>
-            <h2 className="text-gradient" style={{ fontSize: '1.8rem', fontWeight: 800 }}>MUUNGANO WETU AI</h2>
-            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '4px' }}>
-              Dashibodi ya Utawala na Usimamizi
+            <h2 className="text-gradient" style={{ fontSize: '1.9rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+              MUUNGANO WETU AI
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 500 }}>
+              Dashibodi ya Usimamizi na Udhibiti 🇹🇿
             </p>
           </div>
 
           {authError && (
             <div style={{
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid rgba(239, 68, 68, 0.3)',
-              color: 'var(--error)',
-              padding: '12px',
-              borderRadius: '8px',
-              fontSize: '0.9rem',
-              marginBottom: '20px',
-              textAlign: 'center'
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.25)',
+              color: '#fca5a5',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              fontSize: '0.88rem',
+              marginBottom: '24px',
+              textAlign: 'center',
+              fontWeight: 500
             }}>
-              {authError}
+              ⚠️ {authError}
             </div>
           )}
 
           <form onSubmit={handleLogin}>
             <div className="input-group">
-              <label className="input-label">Barua Pepe (Email)</label>
+              <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Barua Pepe (Email)</label>
               <input
                 type="email"
                 placeholder="admin@muungano.go.tz"
@@ -618,14 +613,14 @@ export default function App() {
                 required
               />
             </div>
-            <div className="input-group" style={{ marginBottom: '8px' }}>
-              <label className="input-label">Password</label>
+            <div className="input-group" style={{ marginBottom: '10px' }}>
+              <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Neno la Siri (Password)</label>
               <div style={{ position: 'relative' }}>
                 <input
                   type={showPassword ? 'text' : 'password'}
                   placeholder="••••••••"
                   className="input-field"
-                  style={{ paddingRight: '44px' }}
+                  style={{ paddingRight: '44px', width: '100%' }}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -636,7 +631,7 @@ export default function App() {
                   style={{
                     position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
                     background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--text-muted)', padding: '4px'
+                    color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center'
                   }}
                 >
                   {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -644,27 +639,50 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ textAlign: 'right', marginBottom: '20px' }}>
+            <div style={{ textAlign: 'right', marginBottom: '24px' }}>
               <button
                 type="button"
                 onClick={() => setShowForgotMsg(!showForgotMsg)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.82rem' }}
+                style={{ 
+                  background: 'none', border: 'none', cursor: 'pointer', 
+                  color: 'var(--secondary)', fontSize: '0.82rem', fontWeight: 600,
+                  transition: 'color 0.2s'
+                }}
+                onMouseOver={(e) => e.target.style.color = 'var(--primary)'}
+                onMouseOut={(e) => e.target.style.color = 'var(--secondary)'}
               >
                 Umesahau Password?
               </button>
               {showForgotMsg && (
-                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--text-secondary)', textAlign: 'left' }}>
-                  📧 Tafadhali wasiliana na <strong>Msimamizi Mkuu wa Mfumo</strong> ili aporeshe password yako mfumo huu.
+                <div style={{ 
+                  marginTop: '10px', padding: '12px', 
+                  background: 'rgba(6, 182, 212, 0.06)', border: '1px dashed rgba(6, 182, 212, 0.2)',
+                  borderRadius: '10px', fontSize: '0.82rem', color: 'var(--text-secondary)', textAlign: 'left',
+                  lineHeight: '1.5'
+                }}>
+                  📧 Tafadhali wasiliana na <strong>Msimamizi Mkuu wa Mfumo</strong> ili kubadilisha neno lako la siri kwa usalama.
                 </div>
               )}
             </div>
 
-            <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Kuingia...' : '🔐 Ingia Kwenye Dashibodi'}
+            <button 
+              type="submit" 
+              className="btn btn-primary" 
+              style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }} 
+              disabled={loading}
+            >
+              {loading ? (
+                <span>Kuingia...</span>
+              ) : (
+                <>
+                  <span>🔐</span>
+                  <span>Ingia Kwenye Dashibodi</span>
+                </>
+              )}
             </button>
           </form>
 
-          <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+          <div style={{ marginTop: '32px', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
             Muungano Wetu AI &copy; 2026 | Vyuo na Vyuo Vikuu Tanzania Bara
           </div>
         </div>
@@ -689,7 +707,7 @@ export default function App() {
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
             onClick={() => setActiveTab('overview')}
           >
-            <Users size={18} /> Muhtasari Stats
+            <Users size={18} /> Overview & Stats
           </button>
 
           <button 
@@ -697,7 +715,7 @@ export default function App() {
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
             onClick={() => setActiveTab('quizzes')}
           >
-            <BookOpen size={18} /> Usimamizi Quizzes
+            <BookOpen size={18} /> Quiz Management
           </button>
 
           <button 
@@ -705,7 +723,7 @@ export default function App() {
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
             onClick={() => setActiveTab('stories')}
           >
-            <FileText size={18} /> Hadithi za Kila Siku
+            <FileText size={18} /> Daily Stories
           </button>
 
           <button 
@@ -721,7 +739,7 @@ export default function App() {
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
             onClick={() => { setActiveTab('users'); fetchUsers(); }}
           >
-            <Users size={18} /> Watumiaji
+            <Users size={18} /> Users
           </button>
 
           <button
@@ -737,7 +755,7 @@ export default function App() {
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
             onClick={() => { setActiveTab('broadcast'); fetchFailedMessages(); }}
           >
-            <Megaphone size={18} /> Tuma Tangazo
+            <Megaphone size={18} /> Send Broadcast
           </button>
 
           <button
@@ -745,21 +763,21 @@ export default function App() {
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
             onClick={() => { setActiveTab('admins'); fetchAdmins(); }}
           >
-            <ShieldCheck size={18} /> Ma-Admin
+            <ShieldCheck size={18} /> Admin Management
           </button>
         </nav>
 
         <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '20px' }}>
           <div style={{ marginBottom: '16px', fontSize: '0.85rem' }}>
             <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{admin?.full_name}</div>
-            <div style={{ color: 'var(--text-muted)' }}>Msimamizi</div>
+            <div style={{ color: 'var(--text-muted)' }}>Administrator</div>
           </div>
           <button 
             className="btn btn-secondary" 
             style={{ width: '100%', color: 'var(--error)', justifyContent: 'center' }}
             onClick={handleLogout}
           >
-            <LogOut size={16} /> Ondoka
+            <LogOut size={16} /> Sign Out
           </button>
         </div>
       </aside>
@@ -771,8 +789,8 @@ export default function App() {
         {activeTab === 'overview' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Muhtasari wa Mfumo</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Takwimu na ripoti za ushiriki wa vijana katika kuelimika kuhusu Muungano.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>System Overview</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Statistics and engagement reports for the Union history educational platform.</p>
             </div>
 
             {/* KPI Cards Grid */}
@@ -786,7 +804,7 @@ export default function App() {
                   <Users size={28} />
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Vijana Waliosajiliwa</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Registered Students</div>
                   <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>{stats?.summary.totalStudents || 0}</h2>
                 </div>
               </div>
@@ -796,7 +814,7 @@ export default function App() {
                   <MessageSquare size={28} />
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Ujumbe wa Chat</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Chat Messages</div>
                   <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>{stats?.summary.totalMessages || 0}</h2>
                 </div>
               </div>
@@ -806,7 +824,7 @@ export default function App() {
                   <BookOpen size={28} />
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Sura za Elimu</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Learning Chapters</div>
                   <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>{stats?.summary.totalModules || 0}</h2>
                 </div>
               </div>
@@ -816,7 +834,7 @@ export default function App() {
                   <HelpCircle size={28} />
                 </div>
                 <div>
-                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Jumla ya Maswali</div>
+                  <div style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', textTransform: 'uppercase' }}>Total Questions</div>
                   <h2 style={{ fontSize: '1.8rem', fontWeight: 800 }}>{stats?.summary.totalQuestions || 0}</h2>
                 </div>
               </div>
@@ -829,30 +847,30 @@ export default function App() {
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                   <Trophy style={{ color: 'var(--warning)' }} size={20} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Vijana Wanaoongoza kwa Maarifa</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Top Patriotic Youth by Knowledge</h3>
                 </div>
                 <div className="table-container">
                   <table className="premium-table">
                     <thead>
                       <tr>
-                        <th>Nafasi</th>
-                        <th>Jina Kamili</th>
-                        <th>Njia ya Simu</th>
-                        <th>Alama (Points)</th>
+                        <th>Rank</th>
+                        <th>Full Name</th>
+                        <th>Channel</th>
+                        <th>Points</th>
                       </tr>
                     </thead>
                     <tbody>
                       {stats?.leaderboard.map((user, idx) => (
                         <tr key={user.id}>
                           <td><strong>{idx + 1}</strong></td>
-                          <td>{user.full_name || 'Kijana Uzalendo'}</td>
+                          <td>{user.full_name || 'Patriotic Youth'}</td>
                           <td>{user.phone_number || `Telegram ID: ${user.telegram_id}`}</td>
                           <td style={{ color: 'var(--secondary)', fontWeight: 600 }}>{user.points} pts</td>
                         </tr>
                       ))}
                       {(!stats || stats.leaderboard.length === 0) && (
                         <tr>
-                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bado hakuna data.</td>
+                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available yet.</td>
                         </tr>
                       )}
                     </tbody>
@@ -863,8 +881,8 @@ export default function App() {
               {/* Message Channel Distribution */}
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyItems: 'space-between' }}>
                 <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Chaneli za Ujumbe</h3>
-                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Mgawanyo wa njia zinazotumiwa zaidi na vijana.</p>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '8px' }}>Message Channels</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>Distribution of channels most used by participants.</p>
                 </div>
                 
                 {/* SVG Visual Pie Chart Mock representation */}
@@ -918,7 +936,7 @@ export default function App() {
             <div className="glass-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <History style={{ color: 'var(--primary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Mazungumzo ya Hivi Karibuni na AI Chatbot</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Recent AI Chatbot Conversations</h3>
               </div>
               <div className="table-container">
                 <table className="premium-table">
@@ -936,7 +954,7 @@ export default function App() {
                     {stats?.recentLogs.map((log) => (
                       <tr key={log.id}>
                         <td>
-                          <div style={{ fontWeight: 600 }}>{log.User?.full_name || 'Kijana Uzalendo'}</div>
+                          <div style={{ fontWeight: 600 }}>{log.User?.full_name || 'Patriotic Youth'}</div>
                           <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
                             {log.User?.phone_number || 'Telegram User'}
                           </div>
@@ -958,7 +976,7 @@ export default function App() {
                         <td>
                           <button
                             onClick={() => handleDeleteChatLog(log.id)}
-                            title="Futa ujumbe huu"
+                            title="Delete this message"
                             style={{
                               background: 'rgba(239,68,68,0.1)',
                               border: '1px solid rgba(239,68,68,0.3)',
@@ -977,7 +995,7 @@ export default function App() {
                     ))}
                     {(!stats || stats.recentLogs.length === 0) && (
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bado hakuna ujumbe ulioingia.</td>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No messages received yet.</td>
                       </tr>
                     )}
                   </tbody>
@@ -991,8 +1009,8 @@ export default function App() {
         {activeTab === 'quizzes' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Usimamizi wa Quizzes & Moduli</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Sanidi na uongeze moduli au maswali ya mchezo wa kupima uelewa wa Muungano.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Quiz & Module Management</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Configure and add quiz modules or questions to test users' understanding of the Union.</p>
             </div>
 
             {formMessage && (
@@ -1016,14 +1034,14 @@ export default function App() {
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                   <PlusCircle style={{ color: 'var(--primary)' }} size={20} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Unda Moduli / Sura Mpya</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Create New Module / Chapter</h3>
                 </div>
                 <form onSubmit={handleCreateModule}>
                   <div className="input-group">
-                    <label className="input-label">Jina la Moduli</label>
+                    <label className="input-label">Module Title</label>
                     <input 
                       type="text" 
-                      placeholder="Mf. Faida za Muungano" 
+                      placeholder="e.g. Benefits of the Union" 
                       className="input-field"
                       value={newModule.title}
                       onChange={(e) => setNewModule({ ...newModule, title: e.target.value })}
@@ -1032,9 +1050,9 @@ export default function App() {
                   </div>
 
                   <div className="input-group">
-                    <label className="input-label">Maelezo Mafupi (Description)</label>
+                    <label className="input-label">Short Description</label>
                     <textarea 
-                      placeholder="Eleza kwa kifupi kitakachofundishwa..." 
+                      placeholder="Briefly describe what will be taught..." 
                       className="input-field" 
                       rows="3"
                       style={{ resize: 'none' }}
@@ -1045,10 +1063,10 @@ export default function App() {
                   </div>
 
                   <div className="input-group" style={{ marginBottom: '24px' }}>
-                    <label className="input-label">Namba ya Mtiririko (Order Index)</label>
+                    <label className="input-label">Display Order (Order Index)</label>
                     <input 
                       type="number" 
-                      placeholder="Mf. 4" 
+                      placeholder="e.g. 4" 
                       className="input-field"
                       value={newModule.order_index}
                       onChange={(e) => setNewModule({ ...newModule, order_index: e.target.value })}
@@ -1057,7 +1075,7 @@ export default function App() {
                   </div>
 
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    Unda Moduli Mpya
+                    Create New Module
                   </button>
                 </form>
               </div>
@@ -1066,11 +1084,11 @@ export default function App() {
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                   <PlusCircle style={{ color: 'var(--secondary)' }} size={20} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ongeza Swali Jipya la Quiz</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Add New Quiz Question</h3>
                 </div>
                 <form onSubmit={handleCreateQuestion}>
                   <div className="input-group">
-                    <label className="input-label">Chagua Moduli</label>
+                    <label className="input-label">Select Module</label>
                     <select 
                       className="input-field"
                       value={newQuestion.module_id}
@@ -1080,29 +1098,29 @@ export default function App() {
                       {quizzes.map(m => (
                         <option key={m.id} value={m.id}>{m.order_index}. {m.title}</option>
                       ))}
-                      {quizzes.length === 0 && <option value="">-- Hakuna Moduli --</option>}
+                      {quizzes.length === 0 && <option value="">-- No Modules --</option>}
                     </select>
                   </div>
-
+ 
                   <div className="input-group">
-                    <label className="input-label">Swali lenyewe</label>
+                    <label className="input-label">Question Text</label>
                     <input 
                       type="text" 
-                      placeholder="Mf. Muungano wa nchi hizi ulifanyika lini?" 
+                      placeholder="e.g. When did the Union ceremony take place?" 
                       className="input-field"
                       value={newQuestion.question_text}
                       onChange={(e) => setNewQuestion({ ...newQuestion, question_text: e.target.value })}
                       required 
                     />
                   </div>
-
+ 
                   {/* Option inputs */}
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div className="input-group">
-                      <label className="input-label">Chaguo A</label>
+                      <label className="input-label">Option A</label>
                       <input 
                         type="text" 
-                        placeholder="Chaguo la kwanza" 
+                        placeholder="First option" 
                         className="input-field"
                         value={newQuestion.optionA}
                         onChange={(e) => setNewQuestion({ ...newQuestion, optionA: e.target.value })}
@@ -1110,10 +1128,10 @@ export default function App() {
                       />
                     </div>
                     <div className="input-group">
-                      <label className="input-label">Chaguo B</label>
+                      <label className="input-label">Option B</label>
                       <input 
                         type="text" 
-                        placeholder="Chaguo la pili" 
+                        placeholder="Second option" 
                         className="input-field"
                         value={newQuestion.optionB}
                         onChange={(e) => setNewQuestion({ ...newQuestion, optionB: e.target.value })}
@@ -1121,13 +1139,13 @@ export default function App() {
                       />
                     </div>
                   </div>
-
+ 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
                     <div className="input-group">
-                      <label className="input-label">Chaguo C</label>
+                      <label className="input-label">Option C</label>
                       <input 
                         type="text" 
-                        placeholder="Chaguo la tatu" 
+                        placeholder="Third option" 
                         className="input-field"
                         value={newQuestion.optionC}
                         onChange={(e) => setNewQuestion({ ...newQuestion, optionC: e.target.value })}
@@ -1135,10 +1153,10 @@ export default function App() {
                       />
                     </div>
                     <div className="input-group">
-                      <label className="input-label">Chaguo D</label>
+                      <label className="input-label">Option D</label>
                       <input 
                         type="text" 
-                        placeholder="Chaguo la nne" 
+                        placeholder="Fourth option" 
                         className="input-field"
                         value={newQuestion.optionD}
                         onChange={(e) => setNewQuestion({ ...newQuestion, optionD: e.target.value })}
@@ -1146,25 +1164,25 @@ export default function App() {
                       />
                     </div>
                   </div>
-
+ 
                   <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '10px', marginBottom: '24px' }}>
                     <div className="input-group">
-                      <label className="input-label">Jibu Sahihi</label>
+                      <label className="input-label">Correct Answer</label>
                       <select 
                         className="input-field"
                         value={newQuestion.correct_option}
                         onChange={(e) => setNewQuestion({ ...newQuestion, correct_option: e.target.value })}
                         required
                       >
-                        <option value="0">Chaguo A</option>
-                        <option value="1">Chaguo B</option>
-                        <option value="2">Chaguo C</option>
-                        <option value="3">Chaguo D</option>
+                        <option value="0">Option A</option>
+                        <option value="1">Option B</option>
+                        <option value="2">Option C</option>
+                        <option value="3">Option D</option>
                       </select>
                     </div>
-
+ 
                     <div className="input-group">
-                      <label className="input-label">Alama (Points)</label>
+                      <label className="input-label">Points</label>
                       <input 
                         type="number" 
                         className="input-field"
@@ -1174,17 +1192,17 @@ export default function App() {
                       />
                     </div>
                   </div>
-
+ 
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    Hifadhi Swali Jipya
+                    Save New Question
                   </button>
                 </form>
               </div>
             </div>
-
+ 
             {/* List of current modules and questions */}
             <div className="glass-card">
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>Orodha ya Moduli na Maswali Yaliyopo</h3>
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>Current Modules and Questions List</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 {quizzes.map((mod) => (
                   <div key={mod.id} style={{
@@ -1196,12 +1214,12 @@ export default function App() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                       <h4 style={{ color: 'var(--secondary)' }}>{mod.order_index}. {mod.title}</h4>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <span className="badge badge-telegram">{mod.Questions?.length || 0} Maswali</span>
+                        <span className="badge badge-telegram">{mod.Questions?.length || 0} Questions</span>
                         <button
                           onClick={() => handleDeleteModule(mod.id, mod.title)}
                           style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
                         >
-                          <Trash2 size={13}/> Futa
+                          <Trash2 size={13}/> Delete
                         </button>
                       </div>
                     </div>
@@ -1213,11 +1231,11 @@ export default function App() {
                         {mod.Questions.map((q, idx) => (
                           <div key={q.id} style={{ fontSize: '0.88rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                              <strong>Swali {idx + 1}:</strong> {q.question_text} <span style={{ color: 'var(--text-muted)' }}>({q.points} pts)</span>
+                              <strong>Question {idx + 1}:</strong> {q.question_text} <span style={{ color: 'var(--text-muted)' }}>({q.points} pts)</span>
                               <button
                                 onClick={() => handleDeleteQuestion(q.id)}
                                 style={{ background: 'none', border: 'none', color: 'var(--error)', cursor: 'pointer', flexShrink: 0, marginLeft: '8px' }}
-                                title="Futa swali"
+                                title="Delete question"
                               >
                                 <Trash2 size={14}/>
                               </button>
@@ -1233,7 +1251,7 @@ export default function App() {
                         ))}
                       </div>
                     ) : (
-                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>Hakuna maswali yoyote katika moduli hii bado.</div>
+                      <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem', fontStyle: 'italic' }}>No questions in this module yet.</div>
                     )}
                   </div>
                 ))}
@@ -1241,15 +1259,15 @@ export default function App() {
             </div>
           </div>
         )}
-
+ 
         {/* TAB 3: DAILY STORIES */}
         {activeTab === 'stories' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Hadithi za Kihistoria za Kila Siku</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Dhibiti hadithi fupi za kila siku (Daily Stories) ambazo vijana watazisoma kupitia chatbot.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Daily Historical Stories</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Manage short daily stories (Daily Stories) that participants will read through the chatbot.</p>
             </div>
-
+ 
             {formMessage && (
               <div style={{
                 background: 'rgba(16, 185, 129, 0.1)',
@@ -1263,30 +1281,30 @@ export default function App() {
                 {formMessage}
               </div>
             )}
-
+ 
             <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: '20px', alignItems: 'flex-start' }}>
               
               {/* Form to Create story */}
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                   <PlusCircle style={{ color: 'var(--primary)' }} size={20} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Sajili Hadithi Mpya</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Register New Story</h3>
                 </div>
                 <form onSubmit={handleCreateStory}>
                   <div className="input-group">
-                    <label className="input-label">Kichwa cha Hadithi</label>
+                    <label className="input-label">Story Title</label>
                     <input 
                       type="text" 
-                      placeholder="Mf. Nyerere na Karume tarehe 26 Aprili" 
+                      placeholder="e.g. Nyerere and Karume on April 26th" 
                       className="input-field"
                       value={newStory.title}
                       onChange={(e) => setNewStory({ ...newStory, title: e.target.value })}
                       required 
                     />
                   </div>
-
+ 
                   <div className="input-group">
-                    <label className="input-label">Tarehe ya Kuchapisha</label>
+                    <label className="input-label">Publish Date</label>
                     <input 
                       type="date" 
                       className="input-field"
@@ -1295,11 +1313,11 @@ export default function App() {
                       required 
                     />
                   </div>
-
+ 
                   <div className="input-group" style={{ marginBottom: '24px' }}>
-                    <label className="input-label">Maudhui ya Hadithi</label>
+                    <label className="input-label">Story Content</label>
                     <textarea 
-                      placeholder="Andika hadithi ya kihistoria hapa kwa lugha inayovutia na ya kirafiki..." 
+                      placeholder="Write the historical story here in an engaging and friendly tone..." 
                       className="input-field" 
                       rows="8"
                       value={newStory.content}
@@ -1307,16 +1325,16 @@ export default function App() {
                       required
                     ></textarea>
                   </div>
-
+ 
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    Sajili na Iweke Live
+                    Register and Publish Live
                   </button>
                 </form>
               </div>
 
               {/* List of registered stories */}
               <div className="glass-card">
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>Hadithi Zilizopo</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, marginBottom: '20px' }}>Existing Stories</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   {stories.map(story => (
                     <div key={story.id} style={{
@@ -1333,7 +1351,7 @@ export default function App() {
                             onClick={() => handleDeleteStory(story.id, story.title)}
                             style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)', borderRadius: '8px', padding: '4px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.8rem' }}
                           >
-                            <Trash2 size={13}/> Futa
+                            <Trash2 size={13}/> Delete
                           </button>
                         </div>
                       </div>
@@ -1351,7 +1369,7 @@ export default function App() {
                   ))}
                   {stories.length === 0 && (
                     <div style={{ textAlign: 'center', color: 'var(--text-muted)', fontStyle: 'italic', padding: '20px' }}>
-                      Bado hakuna hadithi zilizoandaliwa.
+                      No stories prepared yet.
                     </div>
                   )}
                 </div>
@@ -1366,7 +1384,7 @@ export default function App() {
             <div>
               <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Chatbot Live Simulator</h1>
               <p style={{ color: 'var(--text-secondary)' }}>
-                Fanya majaribio ya jinsi AI Chatbot inavyojibu ujumbe wa vijana moja kwa moja kwenye dashibodi kabla ya kuunganisha namba halisi.
+                Test how the AI Chatbot responds to youth messages directly on the dashboard before connecting real numbers.
               </p>
             </div>
 
@@ -1380,10 +1398,10 @@ export default function App() {
               
               {/* Simulator Config */}
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Mipangilio ya Simuleta</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Simulator Configuration</h3>
                 
                 <div className="input-group">
-                  <label className="input-label">Njia / Chaneli ya Mawasiliano</label>
+                  <label className="input-label">Communication Channel</label>
                   <select 
                     className="input-field" 
                     value={simChannel}
@@ -1401,7 +1419,7 @@ export default function App() {
                 </div>
 
                 <div className="input-group">
-                  <label className="input-label">Kitambulisho cha Mtumiaji (Phone/Username)</label>
+                  <label className="input-label">User Identifier (Phone/Username)</label>
                   <input 
                     type="text" 
                     className="input-field"
@@ -1419,12 +1437,12 @@ export default function App() {
                   color: 'var(--text-secondary)',
                   lineHeight: '1.4'
                 }}>
-                  💡 **Miongozo ya kujaribu:**<br/>
-                  * Andika **HI** au **HABARI** kuamsha Chatbot.<br/>
-                  * Andika **HADITHI** kusoma hadithi ya leo.<br/>
-                  * Andika **QUIZ** kuanza mchezo wa maswali na kujibu (A, B, C, D).<br/>
-                  * Andika **LEADERBOARD** kuona pointi za wasajili wengine.<br/>
-                  * Uliza swali la kihistoria, mf. **"nani alisaini muungano?"**
+                  💡 **Testing Guide:**<br/>
+                  * Type **HI** or **HELLO** to wake the Chatbot.<br/>
+                  * Type **STORY** to read today's story.<br/>
+                  * Type **QUIZ** to start the trivia game and answer (A, B, C, D).<br/>
+                  * Type **LEADERBOARD** to view other participants' points.<br/>
+                  * Ask a historical question, e.g., **"who signed the union?"**
                 </div>
               </div>
 
@@ -1545,7 +1563,7 @@ export default function App() {
                 >
                   <input 
                     type="text" 
-                    placeholder="Andika ujumbe hapa..."
+                    placeholder="Type message here..."
                     className="input-field"
                     style={{ flex: 1, padding: '8px 12px', borderRadius: '20px', fontSize: '0.88rem' }}
                     value={simMessage}
@@ -1575,32 +1593,32 @@ export default function App() {
         {activeTab === 'users' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Watumiaji Waliojisajili</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Orodha ya vijana wote waliojisajili katika mfumo kupitia njia mbalimbali za mawasiliano.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Registered Users</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>List of all registered users on the system across various communication channels.</p>
             </div>
 
             <div className="glass-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <Users style={{ color: 'var(--primary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Vijana ({users.length})</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Users ({users.length})</h3>
               </div>
               <div className="table-container">
                 <table className="premium-table">
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Jina Kamili</th>
-                      <th>Namba ya Simu</th>
+                      <th>Full Name</th>
+                      <th>Phone Number</th>
                       <th>Telegram ID</th>
-                      <th>Alama (Points)</th>
-                      <th>Tarehe ya Kujisajili</th>
+                      <th>Points</th>
+                      <th>Registration Date</th>
                     </tr>
                   </thead>
                   <tbody>
                     {users.map((u, idx) => (
                       <tr key={u.id}>
                         <td><strong>{idx + 1}</strong></td>
-                        <td>{u.full_name || 'Kijana Uzalendo'}</td>
+                        <td>{u.full_name || 'Patriotic Youth'}</td>
                         <td>{u.phone_number || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                         <td>{u.telegram_id || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                         <td><span style={{ color: 'var(--secondary)', fontWeight: 700 }}>{u.points} pts</span></td>
@@ -1608,7 +1626,7 @@ export default function App() {
                       </tr>
                     ))}
                     {users.length === 0 && (
-                      <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bado hakuna watumiaji waliojisajili.</td></tr>
+                      <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No registered users found yet.</td></tr>
                     )}
                   </tbody>
                 </table>
@@ -1621,17 +1639,17 @@ export default function App() {
         {activeTab === 'analytics' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Analytics ya Mfumo</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Takwimu za kina za matumizi, ukuaji wa watumiaji, na ufanisi wa quiz.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>System Analytics</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Detailed statistics on usage, user growth, and quiz performance.</p>
             </div>
 
             {/* Summary KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
               {[
-                { label: 'Waliojisajili', value: analytics?.summary?.totalRegistered ?? '—', color: 'var(--primary)' },
-                { label: 'Hawajajisajili', value: analytics?.summary?.totalUnregistered ?? '—', color: 'var(--warning)' },
-                { label: 'Majaribio ya Quiz', value: analytics?.summary?.totalQuizAttempts ?? '—', color: 'var(--secondary)' },
-                { label: 'Alama za Wastani', value: analytics?.summary?.avgScore ? `${analytics.summary.avgScore} pts` : '—', color: 'var(--success)' },
+                { label: 'Registered', value: analytics?.summary?.totalRegistered ?? '—', color: 'var(--primary)' },
+                { label: 'Unregistered', value: analytics?.summary?.totalUnregistered ?? '—', color: 'var(--warning)' },
+                { label: 'Quiz Attempts', value: analytics?.summary?.totalQuizAttempts ?? '—', color: 'var(--secondary)' },
+                { label: 'Average Score', value: analytics?.summary?.avgScore ? `${analytics.summary.avgScore} pts` : '—', color: 'var(--success)' },
               ].map(card => (
                 <div key={card.label} className="glass-card" style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: card.color }}>{card.value}</div>
@@ -1644,7 +1662,7 @@ export default function App() {
             <div className="glass-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <BarChart2 style={{ color: 'var(--primary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Watumiaji Wapya — Siku 14 Zilizopita</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>New Users — Last 14 Days</h3>
               </div>
               {analytics?.newUsersPerDay?.length > 0 ? (
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px' }}>
@@ -1660,14 +1678,14 @@ export default function App() {
                     );
                   })}
                 </div>
-              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Hakuna data ya kutosha bado.</p>}
+              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Not enough data yet.</p>}
             </div>
 
             {/* Messages Per Day */}
             <div className="glass-card">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <MessageSquare style={{ color: 'var(--secondary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ujumbe kwa Siku — Siku 14 Zilizopita</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Messages Per Day — Last 14 Days</h3>
               </div>
               {analytics?.messagesPerDay?.length > 0 ? (
                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px' }}>
@@ -1683,31 +1701,31 @@ export default function App() {
                     );
                   })}
                 </div>
-              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Hakuna data ya kutosha bado.</p>}
+              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Not enough data yet.</p>}
             </div>
 
             {/* Peak Hours + Channel Breakdown */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
               <div className="glass-card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>⏰ Masaa ya Kilele cha Matumizi</h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>⏰ Peak Usage Hours</h3>
                 {analytics?.peakHours?.slice(0, 5).map((h, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Saa {String(Math.round(h.hour)).padStart(2,'0')}:00</span>
+                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Hour {String(Math.round(h.hour)).padStart(2,'0')}:00</span>
                     <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{h.count} msg</span>
                   </div>
                 ))}
-                {!analytics?.peakHours?.length && <p style={{ color: 'var(--text-muted)' }}>Hakuna data.</p>}
+                {!analytics?.peakHours?.length && <p style={{ color: 'var(--text-muted)' }}>No data.</p>}
               </div>
 
               <div className="glass-card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>📡 Chaneli za Mawasiliano</h3>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>📡 Communication Channels</h3>
                 {analytics?.channelBreakdown?.map((ch, i) => (
                   <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span className={`badge badge-${ch.channel}`}>{ch.channel}</span>
-                    <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>{ch.count} ujumbe</span>
+                    <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>{ch.count} messages</span>
                   </div>
                 ))}
-                {!analytics?.channelBreakdown?.length && <p style={{ color: 'var(--text-muted)' }}>Hakuna data.</p>}
+                {!analytics?.channelBreakdown?.length && <p style={{ color: 'var(--text-muted)' }}>No data.</p>}
               </div>
             </div>
           </div>
@@ -1717,14 +1735,14 @@ export default function App() {
         {activeTab === 'broadcast' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Tuma Tangazo</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Tuma ujumbe moja kwa wakati mmoja kwa watumiaji wote wa WhatsApp waliojisajili.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Send Broadcast</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Send a message to all registered WhatsApp users at once.</p>
             </div>
 
             <div className="glass-card" style={{ maxWidth: '600px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
                 <Megaphone style={{ color: 'var(--warning)' }} size={22} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Andika Ujumbe wa Tangazo</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Write Broadcast Message</h3>
               </div>
 
               <div style={{
@@ -1736,31 +1754,29 @@ export default function App() {
                 fontSize: '0.85rem',
                 color: 'var(--warning)'
               }}>
-                ⚠️ <strong>Tahadhari:</strong> Ujumbe huu utapelekwa kwa watumiaji <strong>wote</strong> wa WhatsApp waliojisajili. Hakikisha ujumbe ni sahihi kabla ya kutuma.
+                ⚠️ <strong>Warning:</strong> This message will be sent to all registered WhatsApp users. Please verify the content before sending.
               </div>
 
               <form onSubmit={handleBroadcast}>
                 <div className="input-group">
-                  <label className="input-label">Ujumbe wa Tangazo</label>
+                  <label className="input-label">Broadcast Message</label>
                   <textarea
                     className="input-field"
                     rows={6}
-                    placeholder="Andika ujumbe wako hapa...&#10;Mfano: Leo ni Siku ya Muungano! Jibu QUIZ kupata alama mara mbili! 🇹🇿"
+                    placeholder="Type your message here...&#10;Example: Today is Union Day! Play the QUIZ to double your points! 🇹🇿"
                     style={{ resize: 'vertical' }}
                     value={broadcastMsg}
                     onChange={e => setBroadcastMsg(e.target.value)}
                     required
                   />
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    {broadcastMsg.length} / 1000 herufi
+                    {broadcastMsg.length} / 1000 characters
                   </div>
                 </div>
 
                 <div style={{ marginTop: '8px', padding: '12px', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '20px' }}>
-                  <strong>Muundo wa ujumbe utakaotumwa:</strong><br />
-                  📢 <em>Tangazo la MUUNGANO WETU AI</em><br />
-                  {broadcastMsg || '...'}<br />
-                  <em>— Timu ya Muungano Wetu AI 🇹🇿</em>
+                           {broadcastMsg || '...'}<br />
+                  <em>— The Muungano Wetu AI Team 🇹🇿</em>
                 </div>
 
                 <button
@@ -1769,7 +1785,7 @@ export default function App() {
                   style={{ width: '100%' }}
                   disabled={broadcastLoading || broadcastMsg.trim().length < 5}
                 >
-                  {broadcastLoading ? 'Inatuma...' : '📢 Tuma kwa Watumiaji Wote'}
+                  {broadcastLoading ? 'Sending...' : '📢 Send to All Users'}
                 </button>
               </form>
 
@@ -1793,21 +1809,21 @@ export default function App() {
             <div className="glass-card animate-fade-in">
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
                 <Megaphone style={{ color: 'var(--error)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ripoti ya Meseji Zilizofeli (Failed Messages)</h3>
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Failed Messages Report</h3>
               </div>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
-                Orodha ya namba za simu ambazo zimeshindwa kupokea ujumbe (kwa mfano, namba zisizotumia WhatsApp au matatizo ya token/mtandao).
+                List of phone numbers that failed to receive messages (e.g., non-WhatsApp numbers or token/network issues).
               </p>
 
               <div className="table-container">
                 <table className="premium-table">
                   <thead>
                     <tr>
-                      <th>Namba ya Simu</th>
-                      <th>Aina</th>
-                      <th>Kosa (Error Reason)</th>
-                      <th>Yaliyomo</th>
-                      <th>Muda</th>
+                      <th>Phone Number</th>
+                      <th>Type</th>
+                      <th>Error Reason</th>
+                      <th>Content</th>
+                      <th>Time</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1832,7 +1848,7 @@ export default function App() {
                     ))}
                     {failedMessages.length === 0 && (
                       <tr>
-                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Safi kabisa! Hakuna ujumbe uliofeli kufikia sasa. 🎉</td>
+                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Excellent! No failed messages so far. 🎉</td>
                       </tr>
                     )}
                   </tbody>
@@ -1847,8 +1863,8 @@ export default function App() {
         {activeTab === 'admins' && (
           <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
             <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Usimamizi wa Ma-Admin</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Ongeza au angalia ma-admin wengine wanaoweza kuingia kwenye mfumo huu wa Dashibodi.</p>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Admin Management</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Add or view other administrators who can log into this Dashboard system.</p>
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
@@ -1856,40 +1872,40 @@ export default function App() {
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
                   <UserPlus style={{ color: 'var(--primary)' }} size={22} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Sajili Msimamizi Mpya</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Register New Administrator</h3>
                 </div>
 
                 <div style={{
                   background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
                   borderRadius: '10px', padding: '12px', marginBottom: '20px', fontSize: '0.82rem', color: 'var(--text-secondary)'
                 }}>
-                  🔐 <strong>Muhimu:</strong> Msimamizi mpya atakayesajiliwa ataweza kuingia kwenye Dashibodi hii kwa kutumia <strong>Email</strong> na <strong>Password</strong> unayompa.
+                  🔐 <strong>Important:</strong> The newly registered administrator will be able to log into this Dashboard using the <strong>Email</strong> and <strong>Password</strong> you set.
                 </div>
 
                 <form onSubmit={handleCreateAdmin}>
                   <div className="input-group">
-                    <label className="input-label">Jina Kamili *</label>
-                    <input type="text" placeholder="Mf. Amina Rashid" className="input-field"
+                    <label className="input-label">Full Name *</label>
+                    <input type="text" placeholder="e.g. Amina Rashid" className="input-field"
                       value={newAdmin.full_name} onChange={e => setNewAdmin({ ...newAdmin, full_name: e.target.value })} required />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Barua Pepe (Email) *</label>
+                    <label className="input-label">Email Address *</label>
                     <input type="email" placeholder="admin@muungano.go.tz" className="input-field"
                       value={newAdmin.email} onChange={e => setNewAdmin({ ...newAdmin, email: e.target.value })} required />
                   </div>
                   <div className="input-group">
-                    <label className="input-label">Namba ya Simu (Hiari)</label>
+                    <label className="input-label">Phone Number (Optional)</label>
                     <input type="text" placeholder="+255700000000" className="input-field"
                       value={newAdmin.phone_number} onChange={e => setNewAdmin({ ...newAdmin, phone_number: e.target.value })} />
                   </div>
                   <div className="input-group" style={{ marginBottom: '20px' }}>
                     <label className="input-label">Password *</label>
-                    <input type="password" placeholder="Weka password ngumu..." className="input-field"
+                    <input type="password" placeholder="Enter a secure password..." className="input-field"
                       value={newAdmin.password} onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })} required minLength={6} />
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Angalau herufi 6</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>At least 6 characters</div>
                   </div>
                   <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    <UserPlus size={16} /> Sajili Msimamizi Mpya
+                    <UserPlus size={16} /> Register New Administrator
                   </button>
                 </form>
 
@@ -1909,11 +1925,11 @@ export default function App() {
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
                   <ShieldCheck style={{ color: 'var(--success)' }} size={22} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ma-Admin Waliopo ({admins.length})</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Existing Administrators ({admins.length})</h3>
                 </div>
 
                 {admins.length === 0 ? (
-                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>Bado hakuna ma-admin wengine.</p>
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>No other administrators registered yet.</p>
                 ) : (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     {admins.map(a => (

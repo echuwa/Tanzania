@@ -1,4 +1,5 @@
 require('dotenv').config();
+const FailedMessage = require('../models/FailedMessage');
 
 /**
  * Sends SMS via Africa's Talking SMS Gateway
@@ -35,9 +36,36 @@ async function sendSMS(toPhoneNumber, text) {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+      console.error(`[SMS Outbound] ❌ SEND FAILED — HTTP ${response.status}`);
+      try {
+        await FailedMessage.create({
+          phone_number: toPhoneNumber,
+          message_text: text,
+          error_code: String(response.status),
+          error_message: JSON.stringify(data) || 'SMS API Error',
+          channel: 'sms',
+          message_type: 'reply'
+        });
+      } catch (dbErr) {
+        console.error('❌ Failed to log failed SMS message in DB:', dbErr.message);
+      }
+    }
     return { success: response.ok, data };
   } catch (error) {
     console.error('[SMS Service] Error sending SMS:', error);
+    try {
+      await FailedMessage.create({
+        phone_number: toPhoneNumber,
+        message_text: text,
+        error_code: 'NETWORK_ERROR',
+        error_message: error.message,
+        channel: 'sms',
+        message_type: 'reply'
+      });
+    } catch (dbErr) {
+      console.error('❌ Failed to log failed SMS message in DB:', dbErr.message);
+    }
     return { success: false, error };
   }
 }

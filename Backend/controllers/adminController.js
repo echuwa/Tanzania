@@ -9,18 +9,18 @@ exports.login = async (req, res) => {
   const { email, password } = req.body;
 
   if (!email || !password) {
-    return res.status(400).json({ message: 'Tafadhali weka barua pepe (email) na password' });
+    return res.status(400).json({ message: 'Please provide email and password' });
   }
 
   try {
     const user = await User.findOne({ where: { email, role: 'admin' } });
     if (!user) {
-      return res.status(400).json({ message: 'Akaunti ya Msimamizi haikupatikana' });
+      return res.status(400).json({ message: 'Administrator account not found' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Password si sahihi' });
+      return res.status(400).json({ message: 'Incorrect password' });
     }
 
     const token = jwt.sign(
@@ -40,7 +40,7 @@ exports.login = async (req, res) => {
     });
   } catch (error) {
     console.error('Error during admin login:', error);
-    res.status(500).json({ message: 'Hitilafu ya seva ilitokea wakati wa kuingia' });
+    res.status(500).json({ message: 'Server error occurred during login' });
   }
 };
 
@@ -103,7 +103,7 @@ exports.getStats = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting admin stats:', error);
-    res.status(500).json({ message: 'Hitilafu ya seva wakati wa kupata takwimu' });
+    res.status(500).json({ message: 'Server error while retrieving statistics' });
   }
 };
 
@@ -122,7 +122,7 @@ exports.getQuizzes = async (req, res) => {
     res.json(modules);
   } catch (error) {
     console.error('Error fetching quizzes:', error);
-    res.status(500).json({ message: 'Hitilafu wakati wa kupata quizzes' });
+    res.status(500).json({ message: 'Error occurred while retrieving quizzes' });
   }
 };
 
@@ -131,7 +131,7 @@ exports.createModule = async (req, res) => {
   const { title, description, order_index } = req.body;
 
   if (!title || !description || order_index === undefined) {
-    return res.status(400).json({ message: 'Tafadhali jaza maelezo yote yanayohitajika' });
+    return res.status(400).json({ message: 'Please fill in all required details' });
   }
 
   try {
@@ -139,7 +139,7 @@ exports.createModule = async (req, res) => {
     res.status(201).json(newModule);
   } catch (error) {
     console.error('Error creating module:', error);
-    res.status(500).json({ message: 'Imefeli kuunda moduli mpya' });
+    res.status(500).json({ message: 'Failed to create new module' });
   }
 };
 
@@ -148,7 +148,7 @@ exports.createQuestion = async (req, res) => {
   const { module_id, question_text, options, correct_option, points } = req.body;
 
   if (!module_id || !question_text || !options || correct_option === undefined) {
-    return res.status(400).json({ message: 'Tafadhali jaza maelezo yote ya swali' });
+    return res.status(400).json({ message: 'Please fill in all question details' });
   }
 
   try {
@@ -162,7 +162,7 @@ exports.createQuestion = async (req, res) => {
     res.status(201).json(newQuestion);
   } catch (error) {
     console.error('Error creating question:', error);
-    res.status(500).json({ message: 'Imefeli kuunda swali jipya' });
+    res.status(500).json({ message: 'Failed to create new question' });
   }
 };
 
@@ -175,7 +175,7 @@ exports.getStories = async (req, res) => {
     res.json(stories);
   } catch (error) {
     console.error('Error fetching stories:', error);
-    res.status(500).json({ message: 'Hitilafu wakati wa kupata hadithi' });
+    res.status(500).json({ message: 'Error occurred while retrieving stories' });
   }
 };
 
@@ -184,21 +184,21 @@ exports.createStory = async (req, res) => {
   const { title, content, publish_date } = req.body;
 
   if (!title || !content || !publish_date) {
-    return res.status(400).json({ message: 'Tafadhali jaza maelezo yote ya hadithi' });
+    return res.status(400).json({ message: 'Please fill in all story details' });
   }
 
   try {
     // Check if story for this date already exists
     const existing = await DailyStory.findOne({ where: { publish_date } });
     if (existing) {
-      return res.status(400).json({ message: `Hadithi ya tarehe ${publish_date} tayari ipo` });
+      return res.status(400).json({ message: `A story for date ${publish_date} already exists` });
     }
 
     const newStory = await DailyStory.create({ title, content, publish_date });
     res.status(201).json(newStory);
   } catch (error) {
     console.error('Error creating story:', error);
-    res.status(500).json({ message: 'Imefeli kuunda hadithi mpya' });
+    res.status(500).json({ message: 'Failed to create new story' });
   }
 };
 
@@ -210,14 +210,14 @@ exports.updateStory = async (req, res) => {
   try {
     const story = await DailyStory.findByPk(id);
     if (!story) {
-      return res.status(404).json({ message: 'Hadithi haikupatikana' });
+      return res.status(404).json({ message: 'Story not found' });
     }
 
     await story.update({ title, content, publish_date });
     res.json(story);
   } catch (error) {
     console.error('Error updating story:', error);
-    res.status(500).json({ message: 'Imefeli kuhariri hadithi' });
+    res.status(500).json({ message: 'Failed to update story' });
   }
 };
 
@@ -227,13 +227,13 @@ exports.deleteStory = async (req, res) => {
   try {
     const story = await DailyStory.findByPk(id);
     if (!story) {
-      return res.status(404).json({ message: 'Hadithi haikupatikana' });
+      return res.status(404).json({ message: 'Story not found' });
     }
     await story.destroy();
-    res.json({ message: 'Hadithi imefutwa kwa mafanikio' });
+    res.json({ message: 'Story deleted successfully' });
   } catch (error) {
     console.error('Error deleting story:', error);
-    res.status(500).json({ message: 'Imefeli kufuta hadithi' });
+    res.status(500).json({ message: 'Failed to delete story' });
   }
 };
 
@@ -243,13 +243,13 @@ exports.deleteModule = async (req, res) => {
   try {
     const module = await Module.findByPk(id);
     if (!module) {
-      return res.status(404).json({ message: 'Moduli haikupatikana' });
+      return res.status(404).json({ message: 'Module not found' });
     }
     await module.destroy();
-    res.json({ message: 'Moduli imefutwa kwa mafanikio (maswali yake yamefutwa pia)' });
+    res.json({ message: 'Module deleted successfully (associated questions deleted too)' });
   } catch (error) {
     console.error('Error deleting module:', error);
-    res.status(500).json({ message: 'Imefeli kufuta moduli' });
+    res.status(500).json({ message: 'Failed to delete module' });
   }
 };
 
@@ -259,13 +259,13 @@ exports.deleteQuestion = async (req, res) => {
   try {
     const question = await Question.findByPk(id);
     if (!question) {
-      return res.status(404).json({ message: 'Swali haikupatikana' });
+      return res.status(404).json({ message: 'Question not found' });
     }
     await question.destroy();
-    res.json({ message: 'Swali limefutwa kwa mafanikio' });
+    res.json({ message: 'Question deleted successfully' });
   } catch (error) {
     console.error('Error deleting question:', error);
-    res.status(500).json({ message: 'Imefeli kufuta swali' });
+    res.status(500).json({ message: 'Failed to delete question' });
   }
 };
 
@@ -280,7 +280,7 @@ exports.getUsers = async (req, res) => {
     res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
-    res.status(500).json({ message: 'Imefeli kupata orodha ya watumiaji' });
+    res.status(500).json({ message: 'Failed to retrieve users list' });
   }
 };
 
@@ -376,7 +376,7 @@ exports.getAnalytics = async (req, res) => {
     });
   } catch (error) {
     console.error('Error getting analytics:', error);
-    res.status(500).json({ message: 'Hitilafu wakati wa kupata takwimu za analytics' });
+    res.status(500).json({ message: 'Error occurred while retrieving analytics statistics' });
   }
 };
 
@@ -385,7 +385,7 @@ exports.broadcastMessage = async (req, res) => {
   const { message } = req.body;
 
   if (!message || message.trim().length < 5) {
-    return res.status(400).json({ message: 'Tafadhali andika ujumbe wa angalau herufi 5' });
+    return res.status(400).json({ message: 'Please write a message with at least 5 characters' });
   }
 
   try {
@@ -397,19 +397,19 @@ exports.broadcastMessage = async (req, res) => {
     const whatsappUsers = users.filter(u => u.phone_number);
 
     if (whatsappUsers.length === 0) {
-      return res.status(404).json({ message: 'Hakuna watumiaji wa WhatsApp waliopo' });
+      return res.status(404).json({ message: 'No WhatsApp users found' });
     }
 
     // Respond to admin immediately with count
     res.json({
-      message: `Ujumbe unatumwa kwa watumiaji ${whatsappUsers.length}. Itachukua dakika chache.`,
+      message: `Message is being sent to ${whatsappUsers.length} users. This will take a few minutes.`,
       total: whatsappUsers.length
     });
 
     // Send in background with delay to respect Meta rate limits
     let sent = 0;
     for (const user of whatsappUsers) {
-      const personalizedMsg = `📢 *Tangazo la MUUNGANO WETU AI*\n\n${message}\n\n_— Timu ya Muungano Wetu AI 🇹🇿_`;
+      const personalizedMsg = `📢 *Broadcast from MUUNGANO WETU AI*\n\n${message}\n\n_— The Muungano Wetu AI Team 🇹🇿_`;
       const result = await whatsappService.sendWhatsAppMessage(user.phone_number, personalizedMsg, 'broadcast');
       if (result.success) sent++;
       await new Promise(r => setTimeout(r, 600)); // 600ms delay between sends
@@ -432,7 +432,7 @@ exports.getFailedMessages = async (req, res) => {
     res.json(failed);
   } catch (error) {
     console.error('Error fetching failed messages:', error);
-    res.status(500).json({ message: 'Hitilafu wakati wa kupata ujumbe uliofeli' });
+    res.status(500).json({ message: 'Error occurred while retrieving failed messages' });
   }
 };
 
@@ -442,13 +442,13 @@ exports.deleteChatLog = async (req, res) => {
   try {
     const chatLog = await ChatLog.findByPk(id);
     if (!chatLog) {
-      return res.status(404).json({ message: 'Ujumbe haukupatikana' });
+      return res.status(404).json({ message: 'Message not found' });
     }
     await chatLog.destroy();
-    res.json({ message: 'Ujumbe umefutwa kwa mafanikio! ✅' });
+    res.json({ message: 'Message deleted successfully! ✅' });
   } catch (error) {
     console.error('Error deleting chat log:', error);
-    res.status(500).json({ message: 'Hitilafu ya kufuta ujumbe' });
+    res.status(500).json({ message: 'Error occurred while deleting message' });
   }
 };
 
@@ -463,7 +463,7 @@ exports.getAdmins = async (req, res) => {
     res.json(admins);
   } catch (error) {
     console.error('Error fetching admins:', error);
-    res.status(500).json({ message: 'Hitilafu ya kupata orodha ya ma-admin' });
+    res.status(500).json({ message: 'Error occurred while retrieving administrators list' });
   }
 };
 
@@ -472,21 +472,21 @@ exports.createAdmin = async (req, res) => {
   const { full_name, email, phone_number, password } = req.body;
 
   if (!full_name || !email || !password) {
-    return res.status(400).json({ message: 'Tafadhali jaza Jina Kamili, Email na Password' });
+    return res.status(400).json({ message: 'Please fill in Full Name, Email, and Password' });
   }
 
   try {
     // Check if email already exists
     const existingEmail = await User.findOne({ where: { email } });
     if (existingEmail) {
-      return res.status(400).json({ message: 'Barua pepe (Email) hii tayari imeshasajiliwa' });
+      return res.status(400).json({ message: 'This Email address is already registered' });
     }
 
     // Check if phone number already exists (if provided)
     if (phone_number) {
       const existingPhone = await User.findOne({ where: { phone_number } });
       if (existingPhone) {
-        return res.status(400).json({ message: 'Namba ya simu hii tayari imeshasajiliwa' });
+        return res.status(400).json({ message: 'This phone number is already registered' });
       }
     }
 
@@ -501,7 +501,7 @@ exports.createAdmin = async (req, res) => {
     });
 
     res.status(201).json({
-      message: 'Msimamizi mpya amesajiliwa kwa mafanikio! ✅',
+      message: 'New administrator registered successfully! ✅',
       admin: {
         id: newAdmin.id,
         full_name: newAdmin.full_name,
@@ -511,7 +511,7 @@ exports.createAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('Error creating admin:', error);
-    res.status(500).json({ message: 'Hitilafu wakati wa kusajili msimamizi mpya' });
+    res.status(500).json({ message: 'Error occurred while registering new administrator' });
   }
 };
 

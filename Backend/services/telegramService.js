@@ -1,4 +1,5 @@
 require('dotenv').config();
+const FailedMessage = require('../models/FailedMessage');
 
 /**
  * Sends a message via Telegram Bot API
@@ -28,9 +29,36 @@ async function sendTelegramMessage(chatId, text) {
     });
 
     const data = await response.json();
+    if (!response.ok) {
+      console.error(`[Telegram Outbound] ❌ SEND FAILED — HTTP ${response.status}`);
+      try {
+        await FailedMessage.create({
+          phone_number: chatId,
+          message_text: text,
+          error_code: String(data?.error_code || response.status),
+          error_message: data?.description || 'Telegram API Error',
+          channel: 'telegram',
+          message_type: 'reply'
+        });
+      } catch (dbErr) {
+        console.error('❌ Failed to log failed Telegram message in DB:', dbErr.message);
+      }
+    }
     return { success: response.ok, data };
   } catch (error) {
     console.error('[Telegram Service] Error sending message:', error);
+    try {
+      await FailedMessage.create({
+        phone_number: chatId,
+        message_text: text,
+        error_code: 'NETWORK_ERROR',
+        error_message: error.message,
+        channel: 'telegram',
+        message_type: 'reply'
+      });
+    } catch (dbErr) {
+      console.error('❌ Failed to log failed Telegram message in DB:', dbErr.message);
+    }
     return { success: false, error };
   }
 }

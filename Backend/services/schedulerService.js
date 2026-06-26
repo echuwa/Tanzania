@@ -31,25 +31,25 @@ function startScheduler() {
 
       // Get today's motivational tip (rotates daily)
       const tips = [
-        'Je, unajua Muungano wa Tanzania ni mfano bora wa umoja barani Afrika? 🌍',
-        'Leo ni siku nzuri ya kujifunza historia ya Muungano wetu mtukufu! 📚',
-        'Kujifunza historia ni kujua utambulisho wako — endelea kujifunza! 🇹🇿',
-        'Ujuzi ni nguvu! Kila swali unalolisoma linakufanya mwanazuoni zaidi. 🎓',
-        'Vijana wa Tanzania ndio mustakabali wa taifa — jiunge na quiz leo! 🚀',
-        'Mwalimu Nyerere alisema: "Elimu ni silaha yenye nguvu kubwa." Tumia leo! ⚡',
-        'Historia inafundisha, maisha yanabadilika. Jibu QUIZ leo upate pointi! 🏆'
+        'Did you know that the Union of Tanzania is one of the most successful integration models in Africa? 🌍',
+        'Today is a great day to learn about the history of our glorious Union! 📚',
+        'Learning history is knowing your true identity — keep learning, compatriot! 🇹🇿',
+        'Knowledge is power! Every question you answer builds your understanding. 🎓',
+        'The youth of Tanzania are the bright future of our nation — join the quiz today! 🚀',
+        'Mwalimu Nyerere once said: "Education is a powerful weapon." Use it today! ⚡',
+        'History educates, and life progresses. Answer the QUIZ today to earn points! 🏆'
       ];
       const todayTip = tips[new Date().getDay() % tips.length];
 
       // Send to each user with a small delay to avoid Meta rate limits
       let sent = 0;
       for (const user of whatsappUsers) {
-        const name = user.full_name || 'Kijana';
+        const name = user.full_name || 'Friend';
         const message =
-          `🌅 *Habari za asubuhi, ${name}!*\n\n` +
+          `🌅 *Good morning, ${name}!* \n\n` +
           `${todayTip}\n\n` +
-          `Alama zako za sasa: *${user.points} pts* 🏅\n\n` +
-          `Andika *QUIZ* kupata alama zaidi au *HADITHI* kusoma ya leo! 🇹🇿`;
+          `Your current score: *${user.points} pts* 🏅\n\n` +
+          `Type *QUIZ* to earn points, or *STORY* to read today's history! 🇹🇿`;
 
         const result = await whatsappService.sendWhatsAppMessage(user.phone_number, message, 'reminder');
         if (result.success) sent++;
@@ -71,32 +71,32 @@ function startScheduler() {
     console.log('[Scheduler] 📅 Checking for Tanzanian National Calendar Events...');
     const NATIONAL_EVENTS = {
       '01-12': {
-        title: 'Siku ya Mapinduzi ya Zanzibar 🌴',
-        description: 'Leo tunaadhimisha Mapinduzi ya Zanzibar ya tarehe 12 Januari 1964. Huu ulikuwa msingi mkuu uliofungua njia ya Muungano wetu miezi michache baadaye! Mzee Abeid Amani Karume aliongoza harakati hizi za ukombozi.'
+        title: 'Zanzibar Revolution Day 🌴',
+        description: 'Today we commemorate the Zanzibar Revolution of January 12, 1964. This historic event paved the way for the historic Union of Tanganyika and Zanzibar just a few months later, led by Mzee Abeid Amani Karume.'
       },
       '04-07': {
-        title: 'Siku ya Kumbukumbu ya Mzee Abeid Amani Karume 🕊️',
-        description: 'Leo ni siku ya kumbukumbu ya Rais wa Kwanza wa Zanzibar na Makamu wa Kwanza wa Rais wa Tanzania, Mzee Abeid Amani Karume. Alikuwa nguzo imara ya Muungano wetu na mstari wa mbele katika kuleta usawa.'
+        title: 'Mzee Abeid Amani Karume Memorial Day 🕊️',
+        description: 'Today we honor the memory of the first President of Zanzibar and the First Vice President of Tanzania, Mzee Abeid Amani Karume. He was a pillar of the Union and a champion of social equality.'
       },
       '04-26': {
-        title: '🎉 Siku Kuu ya Muungano wa Tanzania! 🇹🇿',
-        description: 'Tarehe 26 Aprili 1964 ndipo Tanganyika na Zanzibar zilipoungana rasmi kuwa Jamhuri ya Muungano wa Tanzania! Huu ni muungano wa kipekee na wa mfano barani Afrika. Hatua hii ilikamilishwa na waasisi wetu wapendwa, Mwalimu Nyerere na Mzee Karume.'
+        title: '🎉 Union Day Anniversary! 🇹🇿',
+        description: 'On April 26, 1964, Tanganyika and Zanzibar officially united to form the United Republic of Tanzania! This remains a unique and exemplary integration in Africa, founded by Mwalimu Julius Nyerere and Mzee Abeid Karume.'
       },
       '07-07': {
-        title: 'Siku ya Saba Saba (Maonyesho ya Biashara) 📈',
-        description: 'Saba Saba inaleta kumbukumbu ya kuanzishwa kwa chama cha TANU mwaka 1954 na leo ni sherehe kubwa ya maonyesho ya kibiashara nchini Tanzania.'
+        title: 'Saba Saba Day (International Trade Fair) 📈',
+        description: 'Saba Saba commemorates the founding of the TANU political party in 1954 and is celebrated today as a major trade fair and exhibition day in Tanzania.'
       },
       '08-08': {
-        title: 'Siku ya Wakulima (Nane Nane) 🌾',
-        description: 'Tunawapongeza wakulima wote wa Tanzania Bara na Visiwani. Kilimo ni utabiri wa uchumi wetu, na nguvu yetu kuu ya maendeleo.'
+        title: 'Nane Nane Day (Farmers\' Day) 🌾',
+        description: 'We honor all farmers in Mainland and Island Tanzania. Agriculture is the backbone of our economy and the engine of national development.'
       },
       '10-14': {
-        title: 'Kumbukumbu ya Baba wa Taifa (Mwalimu Nyerere) 🎓',
-        description: 'Mwalimu Julius Kambarage Nyerere alifariki tarehe 14 Oktoba 1999. Leo tunamkumbuka kwa uzalendo, falsafa ya Azimio la Arusha, na juhudi zake za kuleta amani na umoja.'
+        title: 'Mwalimu Nyerere Memorial Day 🎓',
+        description: 'Mwalimu Julius Kambarage Nyerere passed away on October 14, 1999. Today we reflect on his patriotism, his principles of self-reliance, and his lifelong work for peace and unity.'
       },
       '12-09': {
-        title: 'Siku ya Uhuru wa Tanganyika! 🇹🇿',
-        description: 'Tarehe 9 Desemba 1961, Tanganyika ilipata uhuru wake chini ya uongozi wa Mwalimu Julius Nyerere. Huu ulikuwa ukombozi wa kwanza uliofuatiwa na ukombozi wa Zanzibar, na hatimaye kuzaliwa kwa Tanzania.'
+        title: 'Tanganyika Independence Day! 🇹🇿',
+        description: 'On December 9, 1961, Tanganyika achieved independence under the leadership of Mwalimu Julius Nyerere. This was the first milestone towards self-determination, leading to the creation of Tanzania.'
       }
     };
 
@@ -126,12 +126,12 @@ function startScheduler() {
 
       let sent = 0;
       for (const user of whatsappUsers) {
-        const name = user.full_name || 'Kijana';
+        const name = user.full_name || 'Friend';
         const message = 
           `🇹🇿 *${event.title}* 🇹🇿\n\n` +
-          `Ndugu ${name},\n\n` +
+          `Dear ${name},\n\n` +
           `${event.description}\n\n` +
-          `Tuendelee kudumisha amani na umoja wetu wa kihistoria. Andika *QUIZ* kupima uelewa wako wa siku hii ya leo! 🏆`;
+          `Let us continue to uphold our peace and national unity. Type *QUIZ* to test your knowledge of today's milestone! 🏆`;
 
         const result = await whatsappService.sendWhatsAppMessage(user.phone_number, message, 'broadcast');
         if (result.success) sent++;

@@ -9,52 +9,52 @@ require('dotenv').config();
 // ============================================================
 
 const SYSTEM_PROMPT =
-  "Wewe ni chatbot ya AI inayoitwa 'MUUNGANO WETU AI' 🇹🇿, na unajibu kwa kutumia Persona (Sauti, Hekima, na Tone ya kipekee) ya Baba wa Taifa, Mwalimu Julius Kambarage Nyerere. " +
-  "Kazi yako kuu ni kuelimisha vijana wa Tanzania kuhusu historia ya Muungano wa Tanganyika na Zanzibar (ulioundwa rasmi tarehe 26 Aprili 1964), waasisi wake mashuhuri (Mwalimu Julius Nyerere na Mzee Abeid Amani Karume), umuhimu na faida zake, mambo ya Muungano, na mwelekeo wake wa sasa. " +
-  "Zungumza kwa kutumia maneno ya hekima, adabu, na staha ya Mwalimu Nyerere (mfano: kutumia maneno kama 'Ndugu yangu', 'Kijana wangu', 'Nchi yetu', au methali na hekima za kizalendo). " +
-  "Ikiwa mtumiaji atapinga, kusema 'HAPANA...', au kuleta hoja tofauti ya kihistoria (Debati ya AI), usikatae kwa ukali; mpokee kwa heshima, mjibu kwa hoja zenye mashiko ya kihistoria, na mhimize kufikiri kwa kina (critical thinking) kwa heshima kubwa ya kiungwana. " +
-  "Jibu kwa Kiswahili safi na cha kuvutia (maneno 80-150 tu). " +
-  "Mwisho wa kila jibu, ongeza wito mfupi wa kutenda kama: kuandika QUIZ, HADITHI, au kuuliza swali lingine la kihistoria. " +
-  "Usiseme mambo ya uongo. Kama hujui, sema wazi na mwelekeze mtumiaji vizuri.";
+  "You are an AI chatbot named 'MUUNGANO WETU AI' 🇹🇿, and you respond using the unique Persona (voice, wisdom, and polite tone) of the Father of the Nation, Mwalimu Julius Kambarage Nyerere. " +
+  "Your primary goal is to educate the youth about the history of the Union of Tanganyika and Zanzibar (officially formed on April 26, 1964), its prominent founders (Mwalimu Julius Nyerere and Mzee Abeid Amani Karume), its importance and benefits, the Articles of Union, and its current progress. " +
+  "Speak using the wisdom, respect, and humble politeness of Mwalimu Nyerere (e.g., addressing the user with terms of endearment like 'My friend', 'My young compatriot', 'My child', 'Our nation', or using patriotic wisdom and African proverbs). " +
+  "If the user disagrees, says 'NO...', or presents a different historical argument (AI Debate), do not reject them harshly; welcome them with respect, respond using solid historical facts, and encourage critical thinking with utmost gentlemanly politeness. " +
+  "Respond in clean, clear, and engaging English (strictly keep it between 80-150 words). " +
+  "At the end of every response, add a short call-to-action such as: typing QUIZ, STORY, or asking another historical question. " +
+  "Do not state false historical facts. If you do not know the answer, state it clearly and guide the user politely.";
 
 // ─────────────────────────────────────────────
 //  Pre-seeded facts for Tier 3 (offline engine)
 // ─────────────────────────────────────────────
 const HISTORICAL_FACTS = [
   {
-    keywords: ['habari', 'mambo', 'hello', 'hi', 'yambo', 'karibu', 'hujambo', 'salamu'],
+    keywords: ['habari', 'mambo', 'hello', 'hi', 'yambo', 'karibu', 'hujambo', 'salamu', 'greetings', 'hey'],
     response:
-      'Habari ya kijana! 🇹🇿 Karibu kwenye *MUUNGANO WETU AI*!\n\nMimi ni msaidizi wako wa akili bandia wa kuelimisha kuhusu Muungano wetu mtukufu. Unaweza:\n\n🎯 Andika *QUIZ* - Mchezo wa maswali na pointi\n📚 Andika *HADITHI* - Hadithi ya leo ya kihistoria\n🏆 Andika *LEADERBOARD* - Vijana wanaoongoza\n\nAu niulize swali lolote la historia ya Tanzania!'
+      'Greetings, my young friend! 🇹🇿 Welcome to *MUUNGANO WETU AI*!\n\nI am your artificial intelligence assistant dedicated to educating you about our glorious Union. You can:\n\n🎯 Type *QUIZ* - Start the trivia game to earn points\n📚 Type *STORY* - Read today\'s historical daily story\n🏆 Type *LEADERBOARD* - See the leading patriotic youths\n\nOr ask me any historical question about Tanzania and the Union!'
   },
   {
-    keywords: ['lini', 'tarehe', 'mwaka', 'anzishwa', 'ulianzishwa'],
+    keywords: ['lini', 'tarehe', 'mwaka', 'anzishwa', 'ulianzishwa', 'when', 'date', 'year', 'established', 'formed'],
     response:
-      'Muungano wa Tanganyika na Zanzibar ulianzishwa rasmi tarehe *26 Aprili 1964*. Hii ni siku ya kihistoria ambayo huadhimishwa kila mwaka nchini Tanzania kama Siku ya Muungano. Andika *QUIZ* kupima maarifa yako! 🎯'
+      'The Union of Tanganyika and Zanzibar was officially established on *April 26, 1964*. This is a historic day celebrated annually in Tanzania as Union Day. Type *QUIZ* to test your knowledge! 🎯'
   },
   {
-    keywords: ['nani', 'waasisi', 'saini', 'nyerere', 'karume'],
+    keywords: ['nani', 'waasisi', 'saini', 'nyerere', 'karume', 'who', 'founders', 'signed'],
     response:
-      'Waasisi wa Muungano wa Tanzania ni:\n\n👑 *Mwalimu Julius Kambarage Nyerere* - Rais wa kwanza wa Tanganyika\n👑 *Mzee Abeid Amani Karume* - Rais wa kwanza wa Zanzibar\n\nWalisaini Mkataba wa Muungano tarehe 22 Aprili 1964, ulioidhinishwa rasmi tarehe 26 Aprili 1964. Andika *QUIZ* kujua zaidi! 🇹🇿'
+      'The prominent founders of the Union of Tanzania are:\n\n👑 *Mwalimu Julius Kambarage Nyerere* - The first President of Tanganyika\n👑 *Mzee Abeid Amani Karume* - The first President of Zanzibar\n\nThey signed the Articles of Union on April 22, 1964, which was formally ratified on April 26, 1964. Type *QUIZ* to learn more! 🇹🇿'
   },
   {
-    keywords: ['udongo', 'changanya', 'mchanganyiko', 'sherehe'],
+    keywords: ['udongo', 'changanya', 'mchanganyiko', 'sherehe', 'soil', 'mix', 'mixing', 'ceremony'],
     response:
-      'Katika sherehe za kihistoria, waasisi Mwalimu Nyerere na Mzee Karume walichanganya udongo kutoka Tanganyika na Zanzibar kwenye chombo kimoja - kuashiria umoja wa milele. Tendo hili la mfano linabaki kuwa ishara ya nguvu ya Muungano wetu. Andika *HADITHI* kusoma zaidi! 📚'
+      'During the historic ceremony, founders Mwalimu Nyerere and Mzee Karume mixed soil from Tanganyika and Zanzibar in a single vessel—symbolizing eternal unity. This symbolic act remains a powerful emblem of the strength of our Union. Type *STORY* to read more! 📚'
   },
   {
-    keywords: ['mambo ya muungano', 'mambo gani', 'idadi ya mambo', 'orodha'],
+    keywords: ['mambo ya muungano', 'mambo gani', 'idadi ya mambo', 'orodha', 'union matters', 'articles', 'list'],
     response:
-      'Awali (1964) Mkataba ulikuwa na mambo *11* ya Muungano. Baadaye yaliongezeka. Mifano:\n\n1. Katiba ya Jamhuri ya Muungano\n2. Mambo ya Nje\n3. Ulinzi na Usalama\n4. Polisi\n5. Uraia\n6. Ushuru wa Forodha\n\nAndika *QUIZ* kupima maarifa yako! 🎯'
+      'Initially (1964), the Union Agreement had *11* Union Matters. They were later expanded. Examples include:\n\n1. The Constitution of the United Republic\n2. Foreign Affairs\n3. Defense and Security\n4. Police Force\n5. Citizenship\n6. Customs and Excise Tariffs\n\nType *QUIZ* to test your understanding! 🎯'
   },
   {
-    keywords: ['faida', 'umuhimu', 'kwa nini', 'manufaa', 'lengo'],
+    keywords: ['faida', 'umuhimu', 'kwa nini', 'manufaa', 'lengo', 'benefits', 'importance', 'why', 'advantages'],
     response:
-      'Muungano wetu una faida kubwa:\n\n🕊️ *Amani na Usalama* - Utulivu katika Afrika Mashariki\n🤝 *Udugu na Mshikamano* - Umoja wa wananchi wote\n📈 *Ukuaji wa Kiuchumi* - Biashara huru na rasilimali\n🌍 *Nguvu Kimataifa* - Sauti moja kubwa duniani\n\nAndika *QUIZ* kujifunza zaidi! 🇹🇿'
+      'Our Union brings great benefits:\n\n🕊️ *Peace and Security* - Stability across East Africa\n🤝 *Brotherhood and Solidarity* - Unity of all citizens\n📈 *Economic Growth* - Free trade and resources sharing\n🌍 *Global Voice* - A strong, unified representation worldwide\n\nType *QUIZ* to learn more, my friend! 🇹🇿'
   },
   {
-    keywords: ['zanzibar', 'tanganyika', 'mapinduzi', 'historia'],
+    keywords: ['zanzibar', 'tanganyika', 'mapinduzi', 'historia', 'revolution', 'independence', 'history'],
     response:
-      'Historia ya msingi:\n\n🗓️ *9 Desemba 1961* - Tanganyika inapata uhuru (TANU / Nyerere)\n🗓️ *12 Januari 1964* - Mapinduzi ya Zanzibar (ASP / Karume)\n🗓️ *26 Aprili 1964* - Muungano wa Tanzania unatangazwa\n\nMiezi michache tu ilipita kati ya mapinduzi na Muungano! Andika *HADITHI* kusoma zaidi! 📚'
+      'Key historical milestones:\n\n🗓️ *December 9, 1961* - Tanganyika gains independence (TANU / Nyerere)\n🗓️ *January 12, 1964* - Zanzibar Revolution (ASP / Karume)\n🗓️ *April 26, 1964* - The United Republic of Tanzania is declared\n\nOnly a few months passed between the revolution and the Union! Type *STORY* to read more! 📚'
   }
 ];
 
@@ -71,11 +71,11 @@ function getLocalFallbackResponse(message) {
     }
   }
   return (
-    'Asante kwa swali lako! 🇹🇿 Kuhusu historia ya Muungano wetu:\n\n' +
-    'Waasisi wetu Mwalimu Nyerere na Mzee Karume waliungana tarehe *26 Aprili 1964* ' +
-    'ili kulinda uhuru wetu na kujenga udugu wa kudumu.\n\n' +
-    'Unaweza:\n🎯 Andika *QUIZ* kuanza mchezo wa maswali\n📚 Andika *HADITHI* kusoma ya leo\n' +
-    'Au niulize swali maalum kama: "Nani alisaini muungano?"'
+    'Thank you for your question, my young compatriot! 🇹🇿 Regarding the history of our Union:\n\n' +
+    'Our founders Mwalimu Nyerere and Mzee Karume united our countries on *April 26, 1964* ' +
+    'to safeguard our freedom and foster permanent brotherhood.\n\n' +
+    'You can:\n🎯 Type *QUIZ* to start a trivia game\n📚 Type *STORY* to read today\'s lesson\n' +
+    'Or ask me a specific question, such as: "Who signed the Union?"'
   );
 }
 
