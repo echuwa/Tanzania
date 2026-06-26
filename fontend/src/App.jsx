@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Swal from 'sweetalert2';
 import { 
   Users, 
   MessageSquare, 
@@ -243,8 +244,26 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
-    if (!window.confirm('Je, una uhakika unataka kuondoka kwenye mfumo? Utahitaji kuingia tena.')) return;
+  const handleLogout = async () => {
+    const result = await Swal.fire({
+      title: 'Unataka Kuondoka?',
+      text: 'Utahitaji kuingia tena ili kurudi kwenye Dashibodi.',
+      icon: 'warning',
+      iconColor: '#f59e0b',
+      showCancelButton: true,
+      confirmButtonText: '🚪 Ndiyo, Niondoe',
+      cancelButtonText: 'Bado Hapo',
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6366f1',
+      customClass: {
+        popup: 'swal-custom-popup',
+        title: 'swal-custom-title',
+      },
+      backdrop: 'rgba(0,0,0,0.7)',
+    });
+    if (!result.isConfirmed) return;
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminInfo');
     setToken('');
@@ -253,13 +272,30 @@ export default function App() {
 
   // Delete single Chat Log
   const handleDeleteChatLog = async (id) => {
-    if (!window.confirm('Je, una uhakika wa kufuta ujumbe huu wa mazungumzo?')) return;
+    const result = await Swal.fire({
+      title: 'Futa Ujumbe Huu?',
+      text: 'Ujumbe huu utafutwa kabisa na hautaweza kurudishwa.',
+      icon: 'question',
+      iconColor: '#ef4444',
+      showCancelButton: true,
+      confirmButtonText: '🗑️ Ndiyo, Futa',
+      cancelButtonText: 'Acha',
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6366f1',
+      backdrop: 'rgba(0,0,0,0.7)',
+    });
+    if (!result.isConfirmed) return;
     try {
       const res = await fetch(`${API_BASE}/admin/chat-logs/${id}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (res.ok) { fetchStats(); }
+      if (res.ok) {
+        await Swal.fire({ title: 'Imefutwa!', text: 'Ujumbe umefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        fetchStats();
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -401,40 +437,88 @@ export default function App() {
 
   // Delete Module
   const handleDeleteModule = async (id, title) => {
-    if (!window.confirm(`Je, una uhakika wa kufuta moduli "${title}" na maswali yake yote?`)) return;
+    const result = await Swal.fire({
+      title: 'Futa Moduli Hii?',
+      html: `Moduli <strong>"${title}"</strong> na <strong>maswali yake yote</strong> zitafutwa kabisa!`,
+      icon: 'warning',
+      iconColor: '#ef4444',
+      showCancelButton: true,
+      confirmButtonText: '🗑️ Ndiyo, Futa Kabisa',
+      cancelButtonText: 'Hapana, Rudi',
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6366f1',
+      backdrop: 'rgba(0,0,0,0.7)',
+    });
+    if (!result.isConfirmed) return;
     try {
       const res = await fetch(`${API_BASE}/admin/modules/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       const d = await res.json();
-      if (res.ok) { setFormMessage('Moduli imefutwa! ✅'); fetchQuizzes(); fetchStats(); }
-      else setFormMessage(`Imefeli: ${d.message}`);
+      if (res.ok) {
+        Swal.fire({ title: 'Imefutwa!', text: 'Moduli imefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        fetchQuizzes(); fetchStats();
+      } else setFormMessage(`Imefeli: ${d.message}`);
     } catch { setFormMessage('Hitilafu ya muunganisho.'); }
   };
 
   // Delete Question
   const handleDeleteQuestion = async (id) => {
-    if (!window.confirm('Je, una uhakika wa kufuta swali hili?')) return;
+    const result = await Swal.fire({
+      title: 'Futa Swali Hili?',
+      text: 'Swali hili litafutwa kabisa. Hatua hii haiwezi kurudishwa.',
+      icon: 'warning',
+      iconColor: '#f59e0b',
+      showCancelButton: true,
+      confirmButtonText: '🗑️ Futa Swali',
+      cancelButtonText: 'Hapana',
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6366f1',
+      backdrop: 'rgba(0,0,0,0.7)',
+    });
+    if (!result.isConfirmed) return;
     try {
       const res = await fetch(`${API_BASE}/admin/questions/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       const d = await res.json();
-      if (res.ok) { setFormMessage('Swali limefutwa! ✅'); fetchQuizzes(); fetchStats(); }
-      else setFormMessage(`Imefeli: ${d.message}`);
+      if (res.ok) {
+        Swal.fire({ title: 'Imefutwa!', text: 'Swali limefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        fetchQuizzes(); fetchStats();
+      } else setFormMessage(`Imefeli: ${d.message}`);
     } catch { setFormMessage('Hitilafu ya muunganisho.'); }
   };
 
   // Delete Story
   const handleDeleteStory = async (id, title) => {
-    if (!window.confirm(`Je, una uhakika wa kufuta hadithi "${title}"?`)) return;
+    const result = await Swal.fire({
+      title: 'Futa Hadithi Hii?',
+      html: `Hadithi <strong>"${title}"</strong> itafutwa kabisa!`,
+      icon: 'warning',
+      iconColor: '#f59e0b',
+      showCancelButton: true,
+      confirmButtonText: '🗑️ Ndiyo, Futa',
+      cancelButtonText: 'Hapana, Rudi',
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6366f1',
+      backdrop: 'rgba(0,0,0,0.7)',
+    });
+    if (!result.isConfirmed) return;
     try {
       const res = await fetch(`${API_BASE}/admin/stories/${id}`, {
         method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` }
       });
       const d = await res.json();
-      if (res.ok) { setFormMessage('Hadithi imefutwa! ✅'); fetchStories(); }
-      else setFormMessage(`Imefeli: ${d.message}`);
+      if (res.ok) {
+        Swal.fire({ title: 'Imefutwa!', text: 'Hadithi imefutwa kwa mafanikio.', icon: 'success', timer: 1500, showConfirmButton: false, background: '#1a1a2e', color: '#e2e8f0' });
+        fetchStories();
+      } else setFormMessage(`Imefeli: ${d.message}`);
     } catch { setFormMessage('Hitilafu ya muunganisho.'); }
   };
 

@@ -275,3 +275,45 @@ h1, h2, h3, h4 {
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
 }
+
+/* ─── SweetAlert2 Custom Overrides ────────────────────────────── */
+.swal2-popup {
+  border-radius: 18px !important;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 25px 60px rgba(0, 0, 0, 0.5) !important;
+  font-family: 'Inter', 'Outfit', sans-serif !important;
+}
+
+.swal2-title {
+  font-weight: 700 !important;
+  letter-spacing: -0.02em !important;
+  font-size: 1.3rem !important;
+}
+
+.swal2-html-container {
+  font-size: 0.95rem !important;
+  line-height: 1.6 !important;
+}
+
+.swal2-confirm, .swal2-cancel {
+  border-radius: 10px !important;
+  font-weight: 600 !important;
+  padding: 10px 24px !important;
+  font-size: 0.9rem !important;
+  transition: transform 0.15s ease, opacity 0.15s ease !important;
+}
+
+.swal2-confirm:hover, .swal2-cancel:hover {
+  transform: translateY(-1px) !important;
+  opacity: 0.92 !important;
+}
+
+.swal2-icon {
+  border-width: 2px !important;
+  margin-bottom: 16px !important;
+}
+
+.swal2-timer-progress-bar {
+  background: linear-gradient(90deg, #6366f1, #06b6d4) !important;
+}
