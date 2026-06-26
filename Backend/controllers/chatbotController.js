@@ -312,7 +312,11 @@ exports.handleWhatsAppWebhook = async (req, res) => {
     return res.status(403).send('Verification token mismatch');
   }
 
-  // Handle incoming message
+  // ✅ CRITICAL FIX: Respond to Meta IMMEDIATELY (within 5s timeout window)
+  // Meta will retry if it doesn't get 200 fast. Process everything in the background.
+  res.sendStatus(200);
+
+  // --- Process in background (after response is already sent) ---
   try {
     console.log('Incoming WhatsApp Webhook Payload:', JSON.stringify(req.body, null, 2));
     const entry = req.body.entry;
@@ -325,12 +329,11 @@ exports.handleWhatsAppWebhook = async (req, res) => {
         const user = await getOrCreateUser(from, 'whatsapp');
         const reply = await processMessage(user, text, 'whatsapp');
         await whatsappService.sendWhatsAppMessage(from, reply);
+        console.log(`[WhatsApp] ✅ Reply sent to ${from}`);
       }
     }
-    res.sendStatus(200);
   } catch (error) {
-    console.error('Error handling WhatsApp webhook:', error);
-    res.sendStatus(500);
+    console.error('Error handling WhatsApp webhook (background):', error);
   }
 };
 
