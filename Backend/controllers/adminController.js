@@ -1,19 +1,19 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Op } = require('sequelize');
-const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, sequelize } = require('../models');
+const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, FailedMessage, sequelize } = require('../models');
 const whatsappService = require('../services/whatsappService');
 
 // 1. Admin Login
 exports.login = async (req, res) => {
-  const { phone_number, password } = req.body;
+  const { email, password } = req.body;
 
-  if (!phone_number || !password) {
-    return res.status(400).json({ message: 'Tafadhali weka namba ya simu na password' });
+  if (!email || !password) {
+    return res.status(400).json({ message: 'Tafadhali weka barua pepe (email) na password' });
   }
 
   try {
-    const user = await User.findOne({ where: { phone_number, role: 'admin' } });
+    const user = await User.findOne({ where: { email, role: 'admin' } });
     if (!user) {
       return res.status(400).json({ message: 'Akaunti ya Msimamizi haikupatikana' });
     }
@@ -34,6 +34,7 @@ exports.login = async (req, res) => {
       admin: {
         id: user.id,
         full_name: user.full_name,
+        email: user.email,
         phone_number: user.phone_number
       }
     });
@@ -409,7 +410,7 @@ exports.broadcastMessage = async (req, res) => {
     let sent = 0;
     for (const user of whatsappUsers) {
       const personalizedMsg = `📢 *Tangazo la MUUNGANO WETU AI*\n\n${message}\n\n_— Timu ya Muungano Wetu AI 🇹🇿_`;
-      const result = await whatsappService.sendWhatsAppMessage(user.phone_number, personalizedMsg);
+      const result = await whatsappService.sendWhatsAppMessage(user.phone_number, personalizedMsg, 'broadcast');
       if (result.success) sent++;
       await new Promise(r => setTimeout(r, 600)); // 600ms delay between sends
     }
@@ -420,3 +421,98 @@ exports.broadcastMessage = async (req, res) => {
     // res already sent, just log
   }
 };
+
+// 15. Get Failed Messages
+exports.getFailedMessages = async (req, res) => {
+  try {
+    const failed = await FailedMessage.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 50
+    });
+    res.json(failed);
+  } catch (error) {
+    console.error('Error fetching failed messages:', error);
+    res.status(500).json({ message: 'Hitilafu wakati wa kupata ujumbe uliofeli' });
+  }
+};
+
+// 16. Delete an individual Chat Log
+exports.deleteChatLog = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const chatLog = await ChatLog.findByPk(id);
+    if (!chatLog) {
+      return res.status(404).json({ message: 'Ujumbe haukupatikana' });
+    }
+    await chatLog.destroy();
+    res.json({ message: 'Ujumbe umefutwa kwa mafanikio! ✅' });
+  } catch (error) {
+    console.error('Error deleting chat log:', error);
+    res.status(500).json({ message: 'Hitilafu ya kufuta ujumbe' });
+  }
+};
+
+// 17. Get All Admin Users
+exports.getAdmins = async (req, res) => {
+  try {
+    const admins = await User.findAll({
+      where: { role: 'admin' },
+      attributes: ['id', 'full_name', 'email', 'phone_number', 'createdAt'],
+      order: [['createdAt', 'DESC']]
+    });
+    res.json(admins);
+  } catch (error) {
+    console.error('Error fetching admins:', error);
+    res.status(500).json({ message: 'Hitilafu ya kupata orodha ya ma-admin' });
+  }
+};
+
+// 18. Register / Create a New Admin User
+exports.createAdmin = async (req, res) => {
+  const { full_name, email, phone_number, password } = req.body;
+
+  if (!full_name || !email || !password) {
+    return res.status(400).json({ message: 'Tafadhali jaza Jina Kamili, Email na Password' });
+  }
+
+  try {
+    // Check if email already exists
+    const existingEmail = await User.findOne({ where: { email } });
+    if (existingEmail) {
+      return res.status(400).json({ message: 'Barua pepe (Email) hii tayari imeshasajiliwa' });
+    }
+
+    // Check if phone number already exists (if provided)
+    if (phone_number) {
+      const existingPhone = await User.findOne({ where: { phone_number } });
+      if (existingPhone) {
+        return res.status(400).json({ message: 'Namba ya simu hii tayari imeshasajiliwa' });
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newAdmin = await User.create({
+      full_name,
+      email,
+      phone_number: phone_number || null,
+      role: 'admin',
+      password: hashedPassword,
+      is_registered: true
+    });
+
+    res.status(201).json({
+      message: 'Msimamizi mpya amesajiliwa kwa mafanikio! ✅',
+      admin: {
+        id: newAdmin.id,
+        full_name: newAdmin.full_name,
+        email: newAdmin.email,
+        phone_number: newAdmin.phone_number
+      }
+    });
+  } catch (error) {
+    console.error('Error creating admin:', error);
+    res.status(500).json({ message: 'Hitilafu wakati wa kusajili msimamizi mpya' });
+  }
+};
+
+

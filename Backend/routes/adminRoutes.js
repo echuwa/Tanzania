@@ -29,5 +29,15 @@ router.get('/analytics', verifyToken, isAdmin, adminController.getAnalytics);
 // Broadcast — Send WhatsApp message to all users
 router.post('/broadcast', verifyToken, isAdmin, adminController.broadcastMessage);
 
+// Failed Messages Log
+router.get('/failed-messages', verifyToken, isAdmin, adminController.getFailedMessages);
+
+// Delete Chat Log
+router.delete('/chat-logs/:id', verifyToken, isAdmin, adminController.deleteChatLog);
+
+// Admin Management
+router.get('/admins', verifyToken, isAdmin, adminController.getAdmins);
+router.post('/admins', verifyToken, isAdmin, adminController.createAdmin);
+
 module.exports = router;
 

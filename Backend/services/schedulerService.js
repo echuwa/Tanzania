@@ -51,7 +51,7 @@ function startScheduler() {
           `Alama zako za sasa: *${user.points} pts* 🏅\n\n` +
           `Andika *QUIZ* kupata alama zaidi au *HADITHI* kusoma ya leo! 🇹🇿`;
 
-        const result = await whatsappService.sendWhatsAppMessage(user.phone_number, message);
+        const result = await whatsappService.sendWhatsAppMessage(user.phone_number, message, 'reminder');
         if (result.success) sent++;
 
         // 500ms delay between sends to avoid hitting Meta rate limits

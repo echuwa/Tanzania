@@ -5,6 +5,7 @@ const Question = require('./Question');
 const QuizAttempt = require('./QuizAttempt');
 const ChatLog = require('./ChatLog');
 const DailyStory = require('./DailyStory');
+const FailedMessage = require('./FailedMessage');
 
 // Define relationships
 
@@ -31,5 +32,6 @@ module.exports = {
   Question,
   QuizAttempt,
   ChatLog,
-  DailyStory
+  DailyStory,
+  FailedMessage
 };

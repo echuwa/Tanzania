@@ -16,6 +16,7 @@ async function seed() {
     const admin = await User.create({
       full_name: 'Msimamizi Muungano',
       phone_number: '+255700000000',
+      email: 'admin@muungano.go.tz',
       role: 'admin',
       password: adminPasswordHash
     });

@@ -14,7 +14,11 @@ import {
   Smartphone,
   Trash2,
   BarChart2,
-  Megaphone
+  Megaphone,
+  Eye,
+  EyeOff,
+  UserPlus,
+  ShieldCheck
 } from 'lucide-react';
 
 const API_BASE = 'http://localhost:5000/api';
@@ -24,9 +28,16 @@ export default function App() {
   const [admin, setAdmin] = useState(JSON.parse(localStorage.getItem('adminInfo')) || null);
   
   // Auth state
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [showForgotMsg, setShowForgotMsg] = useState(false);
+
+  // Admin Management state
+  const [admins, setAdmins] = useState([]);
+  const [newAdmin, setNewAdmin] = useState({ full_name: '', email: '', phone_number: '', password: '' });
+  const [adminStatus, setAdminStatus] = useState('');
   
   // UI Navigation
   const [activeTab, setActiveTab] = useState('overview');
@@ -42,6 +53,7 @@ export default function App() {
   const [broadcastMsg, setBroadcastMsg] = useState('');
   const [broadcastStatus, setBroadcastStatus] = useState('');
   const [broadcastLoading, setBroadcastLoading] = useState(false);
+  const [failedMessages, setFailedMessages] = useState([]);
   
   // Loaders
   const [loading, setLoading] = useState(false);
@@ -153,6 +165,18 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
+  // Load failed messages
+  const fetchFailedMessages = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/failed-messages`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setFailedMessages(data);
+    } catch (err) { console.error(err); }
+  };
+
   // Broadcast handler
   const handleBroadcast = async (e) => {
     e.preventDefault();
@@ -169,6 +193,7 @@ export default function App() {
       if (res.ok) {
         setBroadcastStatus(`✅ ${data.message}`);
         setBroadcastMsg('');
+        fetchFailedMessages();
       } else {
         setBroadcastStatus(`❌ ${data.message}`);
       }
@@ -200,7 +225,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone_number: phone, password })
+        body: JSON.stringify({ email, password })
       });
       const data = await res.json();
       if (res.ok) {
@@ -209,7 +234,7 @@ export default function App() {
         setToken(data.token);
         setAdmin(data.admin);
       } else {
-        setAuthError(data.message || 'Kuingia kumeshindikana. Angalia namba na password.');
+        setAuthError(data.message || 'Kuingia kumeshindikana. Angalia email na password.');
       }
     } catch (err) {
       setAuthError('Muunganisho na seva umefeli.');
@@ -219,10 +244,56 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    if (!window.confirm('Je, una uhakika unataka kuondoka kwenye mfumo? Utahitaji kuingia tena.')) return;
     localStorage.removeItem('adminToken');
     localStorage.removeItem('adminInfo');
     setToken('');
     setAdmin(null);
+  };
+
+  // Delete single Chat Log
+  const handleDeleteChatLog = async (id) => {
+    if (!window.confirm('Je, una uhakika wa kufuta ujumbe huu wa mazungumzo?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/chat-logs/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) { fetchStats(); }
+    } catch (err) { console.error(err); }
+  };
+
+  // Fetch admins list
+  const fetchAdmins = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/admins`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setAdmins(data);
+    } catch (err) { console.error(err); }
+  };
+
+  // Create Admin
+  const handleCreateAdmin = async (e) => {
+    e.preventDefault();
+    setAdminStatus('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/admins`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(newAdmin)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setAdminStatus(`✅ ${data.message}`);
+        setNewAdmin({ full_name: '', email: '', phone_number: '', password: '' });
+        fetchAdmins();
+      } else {
+        setAdminStatus(`❌ ${data.message}`);
+      }
+    } catch { setAdminStatus('❌ Hitilafu ya muunganisho na seva.'); }
   };
 
   // Create Module
@@ -453,29 +524,59 @@ export default function App() {
 
           <form onSubmit={handleLogin}>
             <div className="input-group">
-              <label className="input-label">Namba ya Simu ya Admin</label>
+              <label className="input-label">Barua Pepe (Email)</label>
               <input
-                type="text"
-                placeholder="+255700000000"
+                type="email"
+                placeholder="admin@muungano.go.tz"
                 className="input-field"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
-            <div className="input-group" style={{ marginBottom: '24px' }}>
+            <div className="input-group" style={{ marginBottom: '8px' }}>
               <label className="input-label">Password</label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                className="input-field"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  className="input-field"
+                  style={{ paddingRight: '44px' }}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', padding: '4px'
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
+
+            <div style={{ textAlign: 'right', marginBottom: '20px' }}>
+              <button
+                type="button"
+                onClick={() => setShowForgotMsg(!showForgotMsg)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--primary)', fontSize: '0.82rem' }}
+              >
+                Umesahau Password?
+              </button>
+              {showForgotMsg && (
+                <div style={{ marginTop: '8px', padding: '10px', background: 'rgba(99,102,241,0.08)', borderRadius: '8px', fontSize: '0.82rem', color: 'var(--text-secondary)', textAlign: 'left' }}>
+                  📧 Tafadhali wasiliana na <strong>Msimamizi Mkuu wa Mfumo</strong> ili aporeshe password yako mfumo huu.
+                </div>
+              )}
+            </div>
+
             <button type="submit" className="btn btn-primary" style={{ width: '100%' }} disabled={loading}>
-              {loading ? 'Kuingia...' : 'Ingia Kwenye Dashibodi'}
+              {loading ? 'Kuingia...' : '🔐 Ingia Kwenye Dashibodi'}
             </button>
           </form>
 
@@ -550,9 +651,17 @@ export default function App() {
           <button
             className={`btn ${activeTab === 'broadcast' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => setActiveTab('broadcast')}
+            onClick={() => { setActiveTab('broadcast'); fetchFailedMessages(); }}
           >
             <Megaphone size={18} /> Tuma Tangazo
+          </button>
+
+          <button
+            className={`btn ${activeTab === 'admins' ? 'btn-primary' : 'btn-secondary'}`}
+            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+            onClick={() => { setActiveTab('admins'); fetchAdmins(); }}
+          >
+            <ShieldCheck size={18} /> Ma-Admin
           </button>
         </nav>
 
@@ -736,6 +845,7 @@ export default function App() {
                       <th>Ujumbe Ulioingia</th>
                       <th>Jibu la AI Chatbot</th>
                       <th>Muda</th>
+                      <th>Futa</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -752,20 +862,38 @@ export default function App() {
                             {log.channel}
                           </span>
                         </td>
-                        <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.message_text}>
                           {log.message_text}
                         </td>
-                        <td style={{ maxWidth: '300px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <td style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.response_text}>
                           {log.response_text}
                         </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
                           {new Date(log.createdAt).toLocaleString()}
+                        </td>
+                        <td>
+                          <button
+                            onClick={() => handleDeleteChatLog(log.id)}
+                            title="Futa ujumbe huu"
+                            style={{
+                              background: 'rgba(239,68,68,0.1)',
+                              border: '1px solid rgba(239,68,68,0.3)',
+                              borderRadius: '6px',
+                              padding: '5px 8px',
+                              cursor: 'pointer',
+                              color: 'var(--error)',
+                              display: 'flex',
+                              alignItems: 'center'
+                            }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
                         </td>
                       </tr>
                     ))}
                     {(!stats || stats.recentLogs.length === 0) && (
                       <tr>
-                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bado hakuna ujumbe ulioingia.</td>
+                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Bado hakuna ujumbe ulioingia.</td>
                       </tr>
                     )}
                   </tbody>
@@ -1575,6 +1703,163 @@ export default function App() {
                   {broadcastStatus}
                 </div>
               )}
+            </div>
+
+            {/* List of Failed Messages */}
+            <div className="glass-card animate-fade-in">
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                <Megaphone style={{ color: 'var(--error)' }} size={20} />
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ripoti ya Meseji Zilizofeli (Failed Messages)</h3>
+              </div>
+              <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', marginBottom: '16px' }}>
+                Orodha ya namba za simu ambazo zimeshindwa kupokea ujumbe (kwa mfano, namba zisizotumia WhatsApp au matatizo ya token/mtandao).
+              </p>
+
+              <div className="table-container">
+                <table className="premium-table">
+                  <thead>
+                    <tr>
+                      <th>Namba ya Simu</th>
+                      <th>Aina</th>
+                      <th>Kosa (Error Reason)</th>
+                      <th>Yaliyomo</th>
+                      <th>Muda</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {failedMessages.map((msg) => (
+                      <tr key={msg.id}>
+                        <td><strong>+{msg.phone_number}</strong></td>
+                        <td>
+                          <span className={`badge ${msg.message_type === 'broadcast' ? 'badge-telegram' : 'badge-sms'}`}>
+                            {msg.message_type}
+                          </span>
+                        </td>
+                        <td style={{ color: 'var(--error)', fontSize: '0.85rem' }}>
+                          <strong>Code {msg.error_code}:</strong> {msg.error_message}
+                        </td>
+                        <td style={{ maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={msg.message_text}>
+                          {msg.message_text}
+                        </td>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                          {new Date(msg.createdAt).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                    {failedMessages.length === 0 && (
+                      <tr>
+                        <td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Safi kabisa! Hakuna ujumbe uliofeli kufikia sasa. 🎉</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+        )}
+
+        {/* TAB 8: MA-ADMIN MANAGEMENT */}
+        {activeTab === 'admins' && (
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
+            <div>
+              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>Usimamizi wa Ma-Admin</h1>
+              <p style={{ color: 'var(--text-secondary)' }}>Ongeza au angalia ma-admin wengine wanaoweza kuingia kwenye mfumo huu wa Dashibodi.</p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
+              {/* Register New Admin Form */}
+              <div className="glass-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+                  <UserPlus style={{ color: 'var(--primary)' }} size={22} />
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Sajili Msimamizi Mpya</h3>
+                </div>
+
+                <div style={{
+                  background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
+                  borderRadius: '10px', padding: '12px', marginBottom: '20px', fontSize: '0.82rem', color: 'var(--text-secondary)'
+                }}>
+                  🔐 <strong>Muhimu:</strong> Msimamizi mpya atakayesajiliwa ataweza kuingia kwenye Dashibodi hii kwa kutumia <strong>Email</strong> na <strong>Password</strong> unayompa.
+                </div>
+
+                <form onSubmit={handleCreateAdmin}>
+                  <div className="input-group">
+                    <label className="input-label">Jina Kamili *</label>
+                    <input type="text" placeholder="Mf. Amina Rashid" className="input-field"
+                      value={newAdmin.full_name} onChange={e => setNewAdmin({ ...newAdmin, full_name: e.target.value })} required />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Barua Pepe (Email) *</label>
+                    <input type="email" placeholder="admin@muungano.go.tz" className="input-field"
+                      value={newAdmin.email} onChange={e => setNewAdmin({ ...newAdmin, email: e.target.value })} required />
+                  </div>
+                  <div className="input-group">
+                    <label className="input-label">Namba ya Simu (Hiari)</label>
+                    <input type="text" placeholder="+255700000000" className="input-field"
+                      value={newAdmin.phone_number} onChange={e => setNewAdmin({ ...newAdmin, phone_number: e.target.value })} />
+                  </div>
+                  <div className="input-group" style={{ marginBottom: '20px' }}>
+                    <label className="input-label">Password *</label>
+                    <input type="password" placeholder="Weka password ngumu..." className="input-field"
+                      value={newAdmin.password} onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })} required minLength={6} />
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>Angalau herufi 6</div>
+                  </div>
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                    <UserPlus size={16} /> Sajili Msimamizi Mpya
+                  </button>
+                </form>
+
+                {adminStatus && (
+                  <div style={{
+                    marginTop: '16px', padding: '12px', borderRadius: '8px', textAlign: 'center', fontSize: '0.9rem',
+                    background: adminStatus.startsWith('✅') ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+                    color: adminStatus.startsWith('✅') ? 'var(--success)' : 'var(--error)',
+                    border: `1px solid ${adminStatus.startsWith('✅') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`
+                  }}>
+                    {adminStatus}
+                  </div>
+                )}
+              </div>
+
+              {/* Admins List */}
+              <div className="glass-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
+                  <ShieldCheck style={{ color: 'var(--success)' }} size={22} />
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Ma-Admin Waliopo ({admins.length})</h3>
+                </div>
+
+                {admins.length === 0 ? (
+                  <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: '20px' }}>Bado hakuna ma-admin wengine.</p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {admins.map(a => (
+                      <div key={a.id} style={{
+                        display: 'flex', alignItems: 'center', gap: '14px', padding: '12px',
+                        background: 'rgba(255,255,255,0.03)', borderRadius: '10px',
+                        border: '1px solid var(--border-glass)'
+                      }}>
+                        <div style={{
+                          width: '40px', height: '40px', borderRadius: '50%',
+                          background: 'var(--primary-glow)', display: 'flex',
+                          alignItems: 'center', justifyContent: 'center',
+                          fontSize: '1.1rem', fontWeight: 700, color: 'var(--primary)'
+                        }}>
+                          {a.full_name?.[0]?.toUpperCase() || 'A'}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ fontWeight: 600, fontSize: '0.95rem' }}>{a.full_name}</div>
+                          <div style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.email}</div>
+                          {a.phone_number && <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{a.phone_number}</div>}
+                        </div>
+                        <span style={{
+                          padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
+                          background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.3)'
+                        }}>Admin</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}

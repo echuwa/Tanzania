@@ -1,10 +1,11 @@
 require('dotenv').config();
+const FailedMessage = require('../models/FailedMessage');
 
 /**
  * Sends a message via WhatsApp Business Cloud API
  * Includes detailed error logging so admin knows exactly what went wrong
  */
-async function sendWhatsAppMessage(toPhoneNumber, text) {
+async function sendWhatsAppMessage(toPhoneNumber, text, messageType = 'reply') {
   const token = process.env.WHATSAPP_TOKEN;
   const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
@@ -44,7 +45,7 @@ async function sendWhatsAppMessage(toPhoneNumber, text) {
       return { success: true, data };
     } else {
       // ── Detailed error logging ──────────────────────────────────
-      const errCode = data?.error?.code;
+      const errCode = String(data?.error?.code || 'Unknown');
       const errMsg  = data?.error?.message || 'Unknown error';
       const errData = data?.error?.error_data?.details || '';
 
@@ -54,18 +55,47 @@ async function sendWhatsAppMessage(toPhoneNumber, text) {
       if (errData) console.error(`   Details : ${errData}`);
 
       // Give admin a clear hint for the most common errors
-      if (errCode === 190) {
+      if (errCode === '190') {
         console.error('   ⛔ ACTION NEEDED: WHATSAPP_TOKEN has EXPIRED. Go to Meta Developer Dashboard and generate a new token!');
-      } else if (errCode === 131030) {
+      } else if (errCode === '131030') {
         console.error(`   ⛔ ACTION NEEDED: +${toPhoneNumber} is NOT in the allowed recipient list. Add it in Meta Dev Dashboard under "Test recipients".`);
-      } else if (errCode === 100) {
+      } else if (errCode === '100') {
         console.error('   ⛔ Bad request — check the phone number format or message body.');
+      }
+
+      // Log failure in DB
+      try {
+        await FailedMessage.create({
+          phone_number: toPhoneNumber,
+          message_text: text,
+          error_code: errCode,
+          error_message: errMsg + (errData ? ` (${errData})` : ''),
+          channel: 'whatsapp',
+          message_type: messageType
+        });
+      } catch (dbErr) {
+        console.error('❌ Failed to log failed message in DB:', dbErr.message);
       }
 
       return { success: false, error: data?.error };
     }
   } catch (error) {
     console.error('[WhatsApp OUT] ❌ Network/Fetch error:', error.message);
+    
+    // Log network failure in DB
+    try {
+      await FailedMessage.create({
+        phone_number: toPhoneNumber,
+        message_text: text,
+        error_code: 'NETWORK_ERROR',
+        error_message: error.message,
+        channel: 'whatsapp',
+        message_type: messageType
+      });
+    } catch (dbErr) {
+      console.error('❌ Failed to log failed message in DB:', dbErr.message);
+    }
+
     return { success: false, error };
   }
 }
@@ -73,3 +103,4 @@ async function sendWhatsAppMessage(toPhoneNumber, text) {
 module.exports = {
   sendWhatsAppMessage
 };
+
