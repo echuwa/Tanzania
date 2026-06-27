@@ -25,18 +25,42 @@ const verifyToken = (req, res, next) => {
 };
 
 /**
- * Middleware: Require Admin Role
+ * Middleware: Require Admin or Super Admin Role
  * Must be used AFTER verifyToken
  */
 const isAdmin = (req, res, next) => {
-  if (req.user && req.user.role === 'admin') {
+  if (req.user && (req.user.role === 'admin' || req.user.role === 'superadmin')) {
     next();
   } else {
     return res.status(403).json({ message: 'Access denied: Administrator privileges required' });
   }
 };
 
+/**
+ * Middleware: Require Super Admin Role Only
+ */
+const isSuperAdminOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'superadmin') {
+    next();
+  } else {
+    return res.status(403).json({ message: 'Access denied: Super Administrator privileges required' });
+  }
+};
+
+/**
+ * Middleware: Require Sub-Admin (admin) Role Only
+ */
+const isAdminOnly = (req, res, next) => {
+  if (req.user && req.user.role === 'admin') {
+    next();
+  } else {
+    return res.status(403).json({ message: 'Access denied: Sub-Admin privileges required (Super Admin restricted)' });
+  }
+};
+
 module.exports = {
   verifyToken,
-  isAdmin
+  isAdmin,
+  isSuperAdminOnly,
+  isAdminOnly
 };

@@ -42,9 +42,16 @@ export default function App() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  // Invite token verification state
+  const [inviteToken, setInviteToken] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
+  const [inviteConfirmPassword, setInviteConfirmPassword] = useState('');
+  const [inviteSuccess, setInviteSuccess] = useState('');
+  const [inviteLoading, setInviteLoading] = useState(false);
+
   // Admin Management state
   const [admins, setAdmins] = useState([]);
-  const [newAdmin, setNewAdmin] = useState({ full_name: '', email: '', phone_number: '', password: '' });
+  const [newAdmin, setNewAdmin] = useState({ full_name: '', email: '', phone_number: '' });
   const [adminStatus, setAdminStatus] = useState('');
   
   // UI Navigation
@@ -209,19 +216,67 @@ export default function App() {
     finally { setBroadcastLoading(false); }
   };
 
-  // Parse reset password token from URL on mount
+  // Parse reset and invite tokens from URL on mount
   useEffect(() => {
     const pathname = window.location.pathname;
-    const match = pathname.match(/\/reset-password\/([a-zA-Z0-9_-]+)/);
     const urlParams = new URLSearchParams(window.location.search);
-    const tokenFromQuery = urlParams.get('token') || urlParams.get('resetToken');
 
+    // Reset password match
+    const match = pathname.match(/\/reset-password\/([a-zA-Z0-9_-]+)/);
+    const tokenFromQuery = urlParams.get('token') || urlParams.get('resetToken');
     if (match && match[1]) {
       setResetToken(match[1]);
     } else if (tokenFromQuery) {
       setResetToken(tokenFromQuery);
     }
+
+    // Verify invite match
+    const inviteMatch = pathname.match(/\/verify-invite\/([a-zA-Z0-9_-]+)/);
+    const inviteTokenFromQuery = urlParams.get('verifyToken') || urlParams.get('inviteToken');
+    if (inviteMatch && inviteMatch[1]) {
+      setInviteToken(inviteMatch[1]);
+    } else if (inviteTokenFromQuery) {
+      setInviteToken(inviteTokenFromQuery);
+    }
   }, []);
+
+  // Handle Invitation Password Setup and verification
+  const handleVerifyInviteSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    setInviteSuccess('');
+
+    if (invitePassword !== inviteConfirmPassword) {
+      setAuthError('Passwords do not match');
+      return;
+    }
+
+    setInviteLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/verify-invite`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: inviteToken, password: invitePassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setInviteSuccess(data.message || 'Account activated successfully! ✅');
+        setInvitePassword('');
+        setInviteConfirmPassword('');
+        window.history.pushState({}, '', '/');
+        setTimeout(() => {
+          setInviteToken('');
+          setInviteSuccess('');
+        }, 3000);
+      } else {
+        setAuthError(data.message || 'Verification failed.');
+      }
+    } catch (err) {
+      setAuthError('Connection error. Please try again.');
+    } finally {
+      setInviteLoading(false);
+    }
+  };
 
   // Google Credential Response callback
   const handleGoogleCredentialResponse = async (response) => {
@@ -286,13 +341,26 @@ export default function App() {
   useEffect(() => {
     if (token) {
       fetchStats();
-      fetchQuizzes();
-      fetchStories();
-      fetchUsers();
+      if (admin?.role === 'superadmin') {
+        fetchQuizzes();
+        fetchStories();
+        fetchAdmins();
+      } else {
+        fetchQuizzes();
+        fetchStories();
+        fetchUsers();
+      }
       const interval = setInterval(fetchStats, 30000);
       return () => clearInterval(interval);
     }
-  }, [token]);
+  }, [token, admin]);
+
+  // Fetch admins automatically when token or admin changes
+  useEffect(() => {
+    if (token && admin?.role === 'superadmin') {
+      fetchAdmins();
+    }
+  }, [token, admin]);
 
   // Auto-scroll simulator chat to bottom
   useEffect(() => {
@@ -522,7 +590,7 @@ export default function App() {
       const data = await res.json();
       if (res.ok) {
         setAdminStatus(`✅ ${data.message}`);
-        setNewAdmin({ full_name: '', email: '', phone_number: '', password: '' });
+        setNewAdmin({ full_name: '', email: '', phone_number: '' });
         fetchAdmins();
       } else {
         setAdminStatus(`❌ ${data.message}`);
@@ -846,11 +914,13 @@ export default function App() {
               MUUNGANO WETU AI
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 500 }}>
-              {resetToken 
-                ? 'Set New Password 🔐' 
-                : isForgotView 
-                  ? 'Password Recovery 📧' 
-                  : 'Administration & Control Dashboard 🇹🇿'}
+              {inviteToken
+                ? 'Accept Invitation & Set Password 🚀'
+                : resetToken 
+                  ? 'Set New Password 🔐' 
+                  : isForgotView 
+                    ? 'Password Recovery 📧' 
+                    : 'Administration & Control Dashboard 🇹🇿'}
             </p>
           </div>
 
@@ -886,8 +956,75 @@ export default function App() {
             </div>
           )}
 
-          {/* ── VIEW 1: RESET PASSWORD FORM ──────────────────────── */}
-          {resetToken ? (
+          {/* ── VIEW 0: INVITE VERIFICATION FORM ─────────────────── */}
+          {inviteToken ? (
+            <form onSubmit={handleVerifyInviteSubmit}>
+              <div style={{
+                background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
+                borderRadius: '12px', padding: '14px 16px', marginBottom: '24px',
+                fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: '1.6'
+              }}>
+                🎉 <strong style={{ color: 'var(--success)' }}>Invitation Accepted!</strong> You've been invited as a Sub-Administrator.
+                Set your password below to activate your account.
+              </div>
+
+              {inviteSuccess && (
+                <div style={{
+                  background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.25)',
+                  color: '#a7f3d0', padding: '12px 16px', borderRadius: '12px',
+                  fontSize: '0.88rem', marginBottom: '24px', textAlign: 'center', fontWeight: 500
+                }}>
+                  ✅ {inviteSuccess}
+                </div>
+              )}
+
+              <div className="input-group">
+                <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Set Your Password</label>
+                <input
+                  type="password"
+                  placeholder="Choose a strong password..."
+                  className="input-field"
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: '24px' }}>
+                <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Confirm Password</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  className="input-field"
+                  value={inviteConfirmPassword}
+                  onChange={(e) => setInviteConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button
+                type="submit"
+                className="btn btn-primary"
+                style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }}
+                disabled={inviteLoading}
+              >
+                {inviteLoading ? <span>Activating Account...</span> : <span>🚀 Activate My Account</span>}
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  onClick={() => { setInviteToken(''); window.history.pushState({}, '', '/'); }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem' }}
+                >
+                  Cancel — Back to Sign In
+                </button>
+              </div>
+            </form>
+
+          /* ── VIEW 1: RESET PASSWORD FORM ──────────────────────── */
+          ) : resetToken ? (
             <form onSubmit={handleResetPasswordSubmit}>
               <div className="input-group">
                 <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>New Password</label>
@@ -1084,6 +1221,7 @@ export default function App() {
         </div>
 
         <nav style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
+          {/* Overview — all roles */}
           <button 
             className={`btn ${activeTab === 'overview' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
@@ -1092,22 +1230,28 @@ export default function App() {
             <Users size={18} /> Overview & Stats
           </button>
 
-          <button 
-            className={`btn ${activeTab === 'quizzes' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => setActiveTab('quizzes')}
-          >
-            <BookOpen size={18} /> Quiz Management
-          </button>
+          {/* Quiz & Stories — Super Admin only */}
+          {admin?.role === 'superadmin' && (
+            <>
+              <button 
+                className={`btn ${activeTab === 'quizzes' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+                onClick={() => setActiveTab('quizzes')}
+              >
+                <BookOpen size={18} /> Quiz Management
+              </button>
 
-          <button 
-            className={`btn ${activeTab === 'stories' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => setActiveTab('stories')}
-          >
-            <FileText size={18} /> Daily Stories
-          </button>
+              <button 
+                className={`btn ${activeTab === 'stories' ? 'btn-primary' : 'btn-secondary'}`}
+                style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+                onClick={() => setActiveTab('stories')}
+              >
+                <FileText size={18} /> Daily Stories
+              </button>
+            </>
+          )}
 
+          {/* Chatbot Simulator — all roles */}
           <button 
             className={`btn ${activeTab === 'simulator' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
@@ -1116,14 +1260,18 @@ export default function App() {
             <Smartphone size={18} /> Chatbot Simulator
           </button>
 
-          <button 
-            className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => { setActiveTab('users'); fetchUsers(); }}
-          >
-            <Users size={18} /> Users
-          </button>
+          {/* Users — Sub-Admin only */}
+          {admin?.role === 'admin' && (
+            <button 
+              className={`btn ${activeTab === 'users' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+              onClick={() => { setActiveTab('users'); fetchUsers(); }}
+            >
+              <Users size={18} /> Users
+            </button>
+          )}
 
+          {/* Analytics — all roles */}
           <button
             className={`btn ${activeTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
@@ -1132,27 +1280,59 @@ export default function App() {
             <BarChart2 size={18} /> Analytics
           </button>
 
-          <button
-            className={`btn ${activeTab === 'broadcast' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => { setActiveTab('broadcast'); fetchFailedMessages(); }}
-          >
-            <Megaphone size={18} /> Send Broadcast
-          </button>
+          {/* Broadcast & Failed Msgs — Sub-Admin only */}
+          {admin?.role === 'admin' && (
+            <button
+              className={`btn ${activeTab === 'broadcast' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+              onClick={() => { setActiveTab('broadcast'); fetchFailedMessages(); }}
+            >
+              <Megaphone size={18} /> Send Broadcast
+            </button>
+          )}
 
-          <button
-            className={`btn ${activeTab === 'admins' ? 'btn-primary' : 'btn-secondary'}`}
-            style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => { setActiveTab('admins'); fetchAdmins(); }}
-          >
-            <ShieldCheck size={18} /> Admin Management
-          </button>
+          {/* Admin Management — Super Admin only */}
+          {admin?.role === 'superadmin' && (
+            <button
+              className={`btn ${activeTab === 'admins' ? 'btn-primary' : 'btn-secondary'}`}
+              style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
+              onClick={() => { setActiveTab('admins'); fetchAdmins(); }}
+            >
+              <ShieldCheck size={18} /> Admin Management
+            </button>
+          )}
         </nav>
 
         <div style={{ borderTop: '1px solid var(--border-glass)', paddingTop: '20px' }}>
           <div style={{ marginBottom: '16px', fontSize: '0.85rem' }}>
             <div style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{admin?.full_name}</div>
-            <div style={{ color: 'var(--text-muted)' }}>Administrator</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '4px' }}>
+              {admin?.role === 'superadmin' ? (
+                <span style={{
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))',
+                  border: '1px solid rgba(139,92,246,0.4)',
+                  color: '#c4b5fd',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase'
+                }}>⭐ Super Admin</span>
+              ) : (
+                <span style={{
+                  background: 'rgba(16,185,129,0.1)',
+                  border: '1px solid rgba(16,185,129,0.3)',
+                  color: '#6ee7b7',
+                  fontSize: '0.72rem',
+                  fontWeight: 700,
+                  padding: '2px 8px',
+                  borderRadius: '999px',
+                  letterSpacing: '0.05em',
+                  textTransform: 'uppercase'
+                }}>🛡 Sub-Admin</span>
+              )}
+            </div>
           </div>
           <button 
             className="btn btn-secondary" 
@@ -1225,40 +1405,80 @@ export default function App() {
             {/* Split Content: Leaderboard and Channel stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: '20px' }}>
               
-              {/* Leaderboard list */}
-              <div className="glass-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                  <Trophy style={{ color: 'var(--warning)' }} size={20} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Top Patriotic Youth by Knowledge</h3>
-                </div>
-                <div className="table-container">
-                  <table className="premium-table">
-                    <thead>
-                      <tr>
-                        <th>Rank</th>
-                        <th>Full Name</th>
-                        <th>Channel</th>
-                        <th>Points</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {stats?.leaderboard.map((user, idx) => (
-                        <tr key={user.id}>
-                          <td><strong>{idx + 1}</strong></td>
-                          <td>{user.full_name || 'Patriotic Youth'}</td>
-                          <td>{user.phone_number || `Telegram ID: ${user.telegram_id}`}</td>
-                          <td style={{ color: 'var(--secondary)', fontWeight: 600 }}>{user.points} pts</td>
-                        </tr>
-                      ))}
-                      {(!stats || stats.leaderboard.length === 0) && (
+              {/* Left Column: Leaderboard (Sub-Admin) or Sub-Administrators List (Super Admin) */}
+              {admin?.role === 'superadmin' ? (
+                <div className="glass-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                    <ShieldCheck style={{ color: 'var(--primary)' }} size={20} />
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Active Sub-Administrators</h3>
+                  </div>
+                  <div className="table-container">
+                    <table className="premium-table">
+                      <thead>
                         <tr>
-                          <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available yet.</td>
+                          <th>Full Name</th>
+                          <th>Email Address</th>
+                          <th>Status</th>
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {admins.map((item) => (
+                          <tr key={item.id}>
+                            <td><strong>{item.full_name}</strong></td>
+                            <td style={{ color: 'var(--text-secondary)' }}>{item.email}</td>
+                            <td>
+                              {item.is_verified ? (
+                                <span className="badge badge-whatsapp" style={{ fontSize: '0.75rem' }}>Active & Verified</span>
+                              ) : (
+                                <span className="badge badge-sms" style={{ fontSize: '0.75rem' }}>Pending Invite</span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                        {admins.length === 0 && (
+                          <tr>
+                            <td colSpan="3" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No sub-administrators registered yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div className="glass-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                    <Trophy style={{ color: 'var(--warning)' }} size={20} />
+                    <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Top Patriotic Youth by Knowledge</h3>
+                  </div>
+                  <div className="table-container">
+                    <table className="premium-table">
+                      <thead>
+                        <tr>
+                          <th>Rank</th>
+                          <th>Full Name</th>
+                          <th>Channel</th>
+                          <th>Points</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {stats?.leaderboard.map((user, idx) => (
+                          <tr key={user.id}>
+                            <td><strong>{idx + 1}</strong></td>
+                            <td>{user.full_name || 'Patriotic Youth'}</td>
+                            <td>{user.phone_number || `Telegram ID: ${user.telegram_id}`}</td>
+                            <td style={{ color: 'var(--secondary)', fontWeight: 600 }}>{user.points} pts</td>
+                          </tr>
+                        ))}
+                        {(!stats || stats.leaderboard.length === 0) && (
+                          <tr>
+                            <td colSpan="4" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No data available yet.</td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
 
               {/* Message Channel Distribution */}
               <div className="glass-card" style={{ display: 'flex', flexDirection: 'column', justifyItems: 'space-between' }}>
@@ -1314,76 +1534,101 @@ export default function App() {
               </div>
             </div>
 
-            {/* Recent Conversations Chat Log */}
-            <div className="glass-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                <History style={{ color: 'var(--primary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Recent AI Chatbot Conversations</h3>
+            {/* Bottom Row: Chat logs (Sub-Admin) or Privacy Compliance Panel (Super Admin) */}
+            {admin?.role === 'superadmin' ? (
+              <div className="glass-card" style={{ padding: '40px 20px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
+                <div style={{
+                  width: '64px', height: '64px', borderRadius: '50%',
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.1))',
+                  border: '1px solid rgba(139,92,246,0.3)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--primary)'
+                }}>
+                  <ShieldCheck size={32} />
+                </div>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 700, margin: 0 }}>Data Security & Compliance Shield</h3>
+                <p style={{ color: 'var(--text-secondary)', maxWidth: '580px', fontSize: '0.9rem', lineHeight: '1.6', margin: 0 }}>
+                  To ensure complete compliance with data protection policies and student privacy regulations, raw student profile details and conversational transcripts are restricted from Super Administrators. 
+                  Support Administrators have been assigned access to individual chat histories for query resolution.
+                </p>
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', gap: '8px',
+                  background: 'rgba(16,185,129,0.06)', border: '1px solid rgba(16,185,129,0.2)',
+                  padding: '8px 16px', borderRadius: '20px', color: '#6ee7b7', fontSize: '0.8rem', fontWeight: 600
+                }}>
+                  🔒 Zero-Trust Privacy Architecture Active
+                </div>
               </div>
-              <div className="table-container">
-                <table className="premium-table">
-                  <thead>
-                    <tr>
-                      <th>Kijana</th>
-                      <th>Njia</th>
-                      <th>Ujumbe Ulioingia</th>
-                      <th>Jibu la AI Chatbot</th>
-                      <th>Muda</th>
-                      <th>Futa</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {stats?.recentLogs.map((log) => (
-                      <tr key={log.id}>
-                        <td>
-                          <div style={{ fontWeight: 600 }}>{log.User?.full_name || 'Patriotic Youth'}</div>
-                          <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                            {log.User?.phone_number || 'Telegram User'}
-                          </div>
-                        </td>
-                        <td>
-                          <span className={`badge badge-${log.channel}`}>
-                            {log.channel}
-                          </span>
-                        </td>
-                        <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.message_text}>
-                          {log.message_text}
-                        </td>
-                        <td style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.response_text}>
-                          {log.response_text}
-                        </td>
-                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                          {new Date(log.createdAt).toLocaleString()}
-                        </td>
-                        <td>
-                          <button
-                            onClick={() => handleDeleteChatLog(log.id)}
-                            title="Delete this message"
-                            style={{
-                              background: 'rgba(239,68,68,0.1)',
-                              border: '1px solid rgba(239,68,68,0.3)',
-                              borderRadius: '6px',
-                              padding: '5px 8px',
-                              cursor: 'pointer',
-                              color: 'var(--error)',
-                              display: 'flex',
-                              alignItems: 'center'
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                    {(!stats || stats.recentLogs.length === 0) && (
+            ) : (
+              <div className="glass-card">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
+                  <History style={{ color: 'var(--primary)' }} size={20} />
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Recent AI Chatbot Conversations</h3>
+                </div>
+                <div className="table-container">
+                  <table className="premium-table">
+                    <thead>
                       <tr>
-                        <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No messages received yet.</td>
+                        <th>Kijana</th>
+                        <th>Njia</th>
+                        <th>Ujumbe Ulioingia</th>
+                        <th>Jibu la AI Chatbot</th>
+                        <th>Muda</th>
+                        <th>Futa</th>
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {stats?.recentLogs.map((log) => (
+                        <tr key={log.id}>
+                          <td>
+                            <div style={{ fontWeight: 600 }}>{log.User?.full_name || 'Patriotic Youth'}</div>
+                            <div style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                              {log.User?.phone_number || 'Telegram User'}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`badge badge-${log.channel}`}>
+                              {log.channel}
+                            </span>
+                          </td>
+                          <td style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.message_text}>
+                            {log.message_text}
+                          </td>
+                          <td style={{ maxWidth: '260px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={log.response_text}>
+                            {log.response_text}
+                          </td>
+                          <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                            {new Date(log.createdAt).toLocaleString()}
+                          </td>
+                          <td>
+                            <button
+                              onClick={() => handleDeleteChatLog(log.id)}
+                              title="Delete this message"
+                              style={{
+                                background: 'rgba(239,68,68,0.1)',
+                                border: '1px solid rgba(239,68,68,0.3)',
+                                borderRadius: '6px',
+                                padding: '5px 8px',
+                                cursor: 'pointer',
+                                color: 'var(--error)',
+                                display: 'flex',
+                                alignItems: 'center'
+                              }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                      {(!stats || stats.recentLogs.length === 0) && (
+                        <tr>
+                          <td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No messages received yet.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -2250,18 +2495,27 @@ export default function App() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px', alignItems: 'start' }}>
-              {/* Register New Admin Form */}
+              {/* Invite New Sub-Admin Form */}
               <div className="glass-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '24px' }}>
                   <UserPlus style={{ color: 'var(--primary)' }} size={22} />
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Register New Administrator</h3>
+                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Invite New Sub-Administrator</h3>
                 </div>
 
                 <div style={{
-                  background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)',
-                  borderRadius: '10px', padding: '12px', marginBottom: '20px', fontSize: '0.82rem', color: 'var(--text-secondary)'
+                  background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.08))',
+                  border: '1px solid rgba(139,92,246,0.2)',
+                  borderRadius: '12px', padding: '14px 16px', marginBottom: '20px',
+                  fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: '1.7'
                 }}>
-                  🔐 <strong>Important:</strong> The newly registered administrator will be able to log into this Dashboard using the <strong>Email</strong> and <strong>Password</strong> you set.
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                    <span style={{ fontSize: '1.1rem', marginTop: '1px' }}>🔐</span>
+                    <div>
+                      <strong style={{ color: '#c4b5fd' }}>Secure Invite Flow:</strong> An invitation email with a verification link will be sent to the new Sub-Admin.
+                      They must <strong>verify their email and set their own password</strong> before they can log in.
+                      They will not have access until they complete this step.
+                    </div>
+                  </div>
                 </div>
 
                 <form onSubmit={handleCreateAdmin}>
@@ -2272,22 +2526,16 @@ export default function App() {
                   </div>
                   <div className="input-group">
                     <label className="input-label">Email Address *</label>
-                    <input type="email" placeholder="admin@muungano.go.tz" className="input-field"
+                    <input type="email" placeholder="subadmin@muungano.go.tz" className="input-field"
                       value={newAdmin.email} onChange={e => setNewAdmin({ ...newAdmin, email: e.target.value })} required />
                   </div>
-                  <div className="input-group">
+                  <div className="input-group" style={{ marginBottom: '24px' }}>
                     <label className="input-label">Phone Number (Optional)</label>
                     <input type="text" placeholder="+255700000000" className="input-field"
                       value={newAdmin.phone_number} onChange={e => setNewAdmin({ ...newAdmin, phone_number: e.target.value })} />
                   </div>
-                  <div className="input-group" style={{ marginBottom: '20px' }}>
-                    <label className="input-label">Password *</label>
-                    <input type="password" placeholder="Enter a secure password..." className="input-field"
-                      value={newAdmin.password} onChange={e => setNewAdmin({ ...newAdmin, password: e.target.value })} required minLength={6} />
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>At least 6 characters</div>
-                  </div>
-                  <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
-                    <UserPlus size={16} /> Register New Administrator
+                  <button type="submit" className="btn btn-primary" style={{ width: '100%', padding: '13px' }}>
+                    <UserPlus size={16} /> Send Invitation Email
                   </button>
                 </form>
 

@@ -27,7 +27,7 @@ const User = sequelize.define('User', {
     allowNull: true
   },
   role: {
-    type: DataTypes.ENUM('admin', 'user'),
+    type: DataTypes.ENUM('superadmin', 'admin', 'user'),
     defaultValue: 'user'
   },
   points: {
@@ -45,6 +45,18 @@ const User = sequelize.define('User', {
   is_registered: {
     type: DataTypes.BOOLEAN,
     defaultValue: false // true after user completes registration (gives their name)
+  },
+  is_verified: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true // default to true so standard users and existing admins are verified
+  },
+  verification_token: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  verification_token_expires: {
+    type: DataTypes.DATE,
+    allowNull: true
   },
   session_data: {
     type: DataTypes.JSON,

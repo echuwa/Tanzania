@@ -106,9 +106,55 @@ async function startServer() {
     await sequelize.authenticate();
     console.log('Database connection verified successfully.');
 
+    // ── DATABASE ENUM SCHEME UPGRADE ──────────────────────────────
+    try {
+      // Add 'superadmin' to the Postgres enum_users_role if it doesn't exist
+      await sequelize.query(`
+        DO $$
+        BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_enum e ON t.oid = e.enumtypid WHERE t.typname = 'enum_users_role' AND e.enumlabel = 'superadmin') THEN
+            ALTER TYPE "enum_users_role" ADD VALUE 'superadmin';
+          END IF;
+        END
+        $$;
+      `);
+      console.log('Database role enum checked and upgraded to include superadmin.');
+    } catch (enumErr) {
+      console.log('Role enum upgrade check skipped or type not created yet:', enumErr.message);
+    }
+
+    // ── COLUMN MIGRATION: Add verification fields to Users table ──
+    try {
+      await sequelize.query(`
+        ALTER TABLE "users"
+          ADD COLUMN IF NOT EXISTS "is_verified" BOOLEAN NOT NULL DEFAULT FALSE,
+          ADD COLUMN IF NOT EXISTS "verification_token" VARCHAR(255),
+          ADD COLUMN IF NOT EXISTS "verification_token_expires" TIMESTAMP WITH TIME ZONE;
+      `);
+      console.log('[Startup] ✅ Verification columns checked/added to Users table.');
+    } catch (colErr) {
+      console.log('[Startup] Column migration skipped:', colErr.message);
+    }
+
     // Sync database tables without overwriting (no force: true)
     await sequelize.sync();
     console.log('Database models synced.');
+
+    // ── DATA MIGRATION: Mark existing admins as verified ──────────
+    // This ensures all pre-existing admin accounts can still log in
+    // after the new is_verified security requirement is introduced.
+    try {
+      const [affectedRows] = await sequelize.query(`
+        UPDATE "users"
+        SET "is_verified" = TRUE
+        WHERE "role" IN ('admin', 'superadmin')
+        AND ("is_verified" IS NULL OR "is_verified" = FALSE)
+        AND "password" IS NOT NULL;
+      `);
+      console.log(`[Startup] Verified ${typeof affectedRows === 'number' ? affectedRows : 'existing'} pre-existing admin accounts.`);
+    } catch (migrationErr) {
+      console.log('[Startup] Admin verification migration skipped:', migrationErr.message);
+    }
 
     app.listen(PORT, () => {
       console.log(`Server is running in ${process.env.NODE_ENV} mode on port ${PORT}`);

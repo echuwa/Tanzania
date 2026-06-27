@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, FailedMessage, sequelize } = require('../models');
 const whatsappService = require('../services/whatsappService');
-const { sendPasswordResetEmail, sendAdminWelcomeEmail } = require('../services/emailService');
+const { sendPasswordResetEmail, sendAdminWelcomeEmail, sendAdminInviteEmail } = require('../services/emailService');
 
 // 1. Admin Login
 exports.login = async (req, res) => {
@@ -17,9 +17,13 @@ exports.login = async (req, res) => {
   const cleanEmail = email.trim().toLowerCase();
 
   try {
-    const user = await User.findOne({ where: { email: cleanEmail, role: 'admin' } });
+    const user = await User.findOne({ where: { email: cleanEmail, role: { [Op.in]: ['admin', 'superadmin'] } } });
     if (!user) {
       return res.status(400).json({ message: 'Administrator account not found' });
+    }
+
+    if (!user.is_verified) {
+      return res.status(403).json({ message: 'Your account is not verified yet. Please check your email to complete registration.' });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
@@ -44,7 +48,8 @@ exports.login = async (req, res) => {
         full_name: user.full_name,
         email: user.email,
         phone_number: user.phone_number,
-        last_login: user.last_login
+        last_login: user.last_login,
+        role: user.role
       }
     });
   } catch (error) {
@@ -98,6 +103,53 @@ exports.getStats = async (req, res) => {
       attributes: ['full_name', 'phone_number', 'createdAt', 'points']
     });
 
+    let sanitizedLeaderboard = leaderboard;
+    let sanitizedRecentLogs = recentLogs;
+    let sanitizedRecentRegistrations = recentRegistrations;
+
+    if (req.user.role === 'superadmin') {
+      const maskPhone = (phone) => {
+        if (!phone) return 'Hidden';
+        if (phone.startsWith('Telegram')) return 'Telegram User';
+        if (phone.length >= 7) {
+          return phone.substring(0, 4) + '***' + phone.substring(phone.length - 3);
+        }
+        return '***';
+      };
+
+      const maskName = (name) => {
+        if (!name) return 'Patriotic Youth';
+        const parts = name.split(' ');
+        return parts.map(p => p[0] ? p[0] + '***' : '').join(' ');
+      };
+
+      sanitizedLeaderboard = leaderboard.map(user => ({
+        id: user.id,
+        full_name: maskName(user.full_name),
+        phone_number: maskPhone(user.phone_number),
+        points: user.points
+      }));
+
+      sanitizedRecentLogs = recentLogs.map(log => ({
+        id: log.id,
+        channel: log.channel,
+        message_text: '[REDACTED FOR PRIVACY]',
+        response_text: '[REDACTED FOR PRIVACY]',
+        createdAt: log.createdAt,
+        User: log.User ? {
+          full_name: maskName(log.User.full_name),
+          phone_number: maskPhone(log.User.phone_number)
+        } : null
+      }));
+
+      sanitizedRecentRegistrations = recentRegistrations.map(user => ({
+        full_name: maskName(user.full_name),
+        phone_number: maskPhone(user.phone_number),
+        createdAt: user.createdAt,
+        points: user.points
+      }));
+    }
+
     res.json({
       summary: {
         totalStudents,
@@ -105,10 +157,10 @@ exports.getStats = async (req, res) => {
         totalModules,
         totalQuestions
       },
-      leaderboard,
+      leaderboard: sanitizedLeaderboard,
       channelStats,
-      recentLogs,
-      recentRegistrations
+      recentLogs: sanitizedRecentLogs,
+      recentRegistrations: sanitizedRecentRegistrations
     });
   } catch (error) {
     console.error('Error getting admin stats:', error);
@@ -476,12 +528,12 @@ exports.getAdmins = async (req, res) => {
   }
 };
 
-// 18. Register / Create a New Admin User
+// 18. Register / Invite a New Admin User
 exports.createAdmin = async (req, res) => {
-  const { full_name, email, phone_number, password } = req.body;
+  const { full_name, email, phone_number } = req.body;
 
-  if (!full_name || !email || !password) {
-    return res.status(400).json({ message: 'Please fill in Full Name, Email, and Password' });
+  if (!full_name || !email) {
+    return res.status(400).json({ message: 'Please fill in Full Name and Email' });
   }
 
   try {
@@ -499,23 +551,31 @@ exports.createAdmin = async (req, res) => {
       }
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    // Generate secure random token
+    const token = crypto.randomBytes(32).toString('hex');
+    const tokenExpires = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const newAdmin = await User.create({
       full_name,
       email,
       phone_number: phone_number || null,
       role: 'admin',
-      password: hashedPassword,
-      is_registered: true
+      is_registered: false,
+      is_verified: false,
+      verification_token: token,
+      verification_token_expires: tokenExpires
     });
 
-    // Send welcome email in background (don't block the response)
-    sendAdminWelcomeEmail(email, full_name, password).catch(err =>
-      console.error('[Admin Create] Welcome email failed:', err.message)
+    // Send invitation email in background
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const inviteUrl = `${frontendUrl}/verify-invite/${token}`;
+
+    sendAdminInviteEmail(email, full_name, inviteUrl).catch(err =>
+      console.error('[Admin Invite] Invitation email failed:', err.message)
     );
 
     res.status(201).json({
-      message: 'New administrator registered successfully! ✅ A welcome email has been sent.',
+      message: 'New administrator invited successfully! ✅ An invitation email with a verification link has been sent.',
       admin: {
         id: newAdmin.id,
         full_name: newAdmin.full_name,
@@ -524,8 +584,47 @@ exports.createAdmin = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Error creating admin:', error);
-    res.status(500).json({ message: 'Error occurred while registering new administrator' });
+    console.error('Error inviting admin:', error);
+    res.status(500).json({ message: 'Error occurred while creating administrator invitation' });
+  }
+};
+
+// 24. Verify Invite Token and Activate Admin Account
+exports.verifyInvite = async (req, res) => {
+  const { token, password } = req.body;
+
+  if (!token || !password) {
+    return res.status(400).json({ message: 'Token and Password are required' });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+  }
+
+  try {
+    const user = await User.findOne({
+      where: {
+        verification_token: token,
+        verification_token_expires: { [Op.gt]: new Date() }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: 'Invalid or expired invitation token' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.password = hashedPassword;
+    user.is_verified = true;
+    user.is_registered = true;
+    user.verification_token = null;
+    user.verification_token_expires = null;
+    await user.save();
+
+    res.json({ message: 'Account verified and password set successfully! You can now log in. ✅' });
+  } catch (error) {
+    console.error('Error verifying invite:', error);
+    res.status(500).json({ message: 'Server error during account verification' });
   }
 };
 
@@ -737,12 +836,16 @@ exports.googleLogin = async (req, res) => {
     }
 
     // Lookup user in database
-    const user = await User.findOne({ where: { email: email.toLowerCase(), role: 'admin' } });
+    const user = await User.findOne({ where: { email: email.toLowerCase(), role: { [Op.in]: ['admin', 'superadmin'] } } });
 
     if (!user) {
       return res.status(403).json({
         message: `Access denied. Google account ${email} is not registered as an administrator in the system.`
       });
+    }
+
+    if (!user.is_verified) {
+      return res.status(403).json({ message: 'Your account is not verified yet. Please check your email to complete registration.' });
     }
 
     // Generate JWT token for dashboard session
@@ -765,7 +868,8 @@ exports.googleLogin = async (req, res) => {
         full_name: user.full_name,
         email: user.email,
         phone_number: user.phone_number,
-        last_login: user.last_login
+        last_login: user.last_login,
+        role: user.role
       }
     });
   } catch (error) {
