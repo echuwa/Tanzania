@@ -1,11 +1,15 @@
 const jwt = require('jsonwebtoken');
 
+/**
+ * Middleware: Verify JWT Token
+ * Checks Authorization header for a valid Bearer token
+ */
 const verifyToken = (req, res, next) => {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1]; // Expecting "Bearer TOKEN"
 
   if (!token) {
-    return res.status(401).json({ message: 'Ruhusa imekataliwa: Hakuna token iliyotolewa' });
+    return res.status(401).json({ message: 'Access denied: No authentication token provided' });
   }
 
   try {
@@ -13,15 +17,22 @@ const verifyToken = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return res.status(401).json({ message: 'Token si halali' });
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({ message: 'Session expired. Please log in again.' });
+    }
+    return res.status(401).json({ message: 'Invalid authentication token' });
   }
 };
 
+/**
+ * Middleware: Require Admin Role
+ * Must be used AFTER verifyToken
+ */
 const isAdmin = (req, res, next) => {
   if (req.user && req.user.role === 'admin') {
     next();
   } else {
-    return res.status(403).json({ message: 'Ruhusa imekataliwa: Unapaswa kuwa Msimamizi (Admin)' });
+    return res.status(403).json({ message: 'Access denied: Administrator privileges required' });
   }
 };
 

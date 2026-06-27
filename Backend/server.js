@@ -16,6 +16,8 @@ dns.lookup = function (hostname, options, callback) {
 const express = require('express');
 const cors = require('cors');
 const morgan = require('morgan');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { sequelize } = require('./models');
@@ -25,8 +27,52 @@ const chatbotRoutes = require('./routes/chatbotRoutes');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// Middleware
-app.use(cors());
+// ── Security Headers (Helmet) ───────────────────────────────────
+app.use(helmet());
+
+// ── CORS — Allow only the configured frontend ───────────────────
+const allowedOrigins = process.env.FRONTEND_URL
+  ? [process.env.FRONTEND_URL, 'http://localhost:3000', 'http://localhost:5173']
+  : ['http://localhost:3000', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, curl, Postman, webhooks)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error(`CORS: Origin ${origin} not allowed`));
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// ── Rate Limiting ───────────────────────────────────────────────
+// Strict limit on admin login to block brute force attacks
+const loginLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 10,                   // max 10 login attempts per 15 minutes per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many login attempts from this IP. Please try again after 15 minutes.' }
+});
+
+// General API limiter (generous limit for normal dashboard use)
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 120,            // 120 requests per minute per IP
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many requests. Please slow down.' }
+});
+
+// Apply login rate limiter specifically to the login endpoint
+app.use('/api/admin/login', loginLimiter);
+
+// Apply general limiter to all other API routes
+app.use('/api/admin', apiLimiter);
+
+// ── Body Parsing ────────────────────────────────────────────────
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -37,6 +83,7 @@ if (process.env.NODE_ENV === 'development') {
 // API Routes
 app.use('/api/admin', adminRoutes);
 app.use('/api/chatbot', chatbotRoutes);
+
 
 // Base route
 app.get('/', (req, res) => {

@@ -34,6 +34,13 @@ export default function App() {
   const [showPassword, setShowPassword] = useState(false);
   const [authError, setAuthError] = useState('');
   const [showForgotMsg, setShowForgotMsg] = useState(false);
+  const [isForgotView, setIsForgotView] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState('');
+  const [resetToken, setResetToken] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
 
   // Admin Management state
   const [admins, setAdmins] = useState([]);
@@ -202,6 +209,80 @@ export default function App() {
     finally { setBroadcastLoading(false); }
   };
 
+  // Parse reset password token from URL on mount
+  useEffect(() => {
+    const pathname = window.location.pathname;
+    const match = pathname.match(/\/reset-password\/([a-zA-Z0-9_-]+)/);
+    const urlParams = new URLSearchParams(window.location.search);
+    const tokenFromQuery = urlParams.get('token') || urlParams.get('resetToken');
+
+    if (match && match[1]) {
+      setResetToken(match[1]);
+    } else if (tokenFromQuery) {
+      setResetToken(tokenFromQuery);
+    }
+  }, []);
+
+  // Google Credential Response callback
+  const handleGoogleCredentialResponse = async (response) => {
+    setAuthError('');
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/google-login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id_token: response.credential })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        localStorage.setItem('adminToken', data.token);
+        localStorage.setItem('adminInfo', JSON.stringify(data.admin));
+        setToken(data.token);
+        setAdmin(data.admin);
+      } else {
+        setAuthError(data.message || 'Google authentication failed.');
+      }
+    } catch (err) {
+      setAuthError('Connection to Google login server failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initialize Google Login Button
+  useEffect(() => {
+    if (token || resetToken || isForgotView) return;
+
+    const initGoogle = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: 'your-google-client-id.apps.googleusercontent.com', // Change this to your Google client ID
+          callback: handleGoogleCredentialResponse
+        });
+        const btn = document.getElementById('google-signin-btn');
+        if (btn) {
+          window.google.accounts.id.renderButton(btn, {
+            theme: 'outline',
+            size: 'large',
+            text: 'signin_with',
+            shape: 'rectangular',
+            width: '320'
+          });
+        }
+      }
+    };
+
+    initGoogle();
+    const interval = setInterval(() => {
+      if (window.google) {
+        initGoogle();
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [token, resetToken, isForgotView]);
+
   useEffect(() => {
     if (token) {
       fetchStats();
@@ -221,24 +302,141 @@ export default function App() {
   const handleLogin = async (e) => {
     e.preventDefault();
     setAuthError('');
-    setLoading(true);
+
+    // Show premium loading alert immediately
+    Swal.fire({
+      title: 'Authenticating...',
+      html: '<span style="color:#a0aec0;font-size:0.9rem;">Verifying your credentials. Please wait.</span>',
+      icon: undefined,
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      showConfirmButton: false,
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      didOpen: () => {
+        Swal.showLoading();
+      },
+      customClass: {
+        loader: 'swal-custom-loader'
+      }
+    });
+
     try {
       const res = await fetch(`${API_BASE}/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password })
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password })
       });
       const data = await res.json();
+
       if (res.ok) {
         localStorage.setItem('adminToken', data.token);
         localStorage.setItem('adminInfo', JSON.stringify(data.admin));
+
+        await Swal.fire({
+          title: `Welcome back, ${data.admin.full_name?.split(' ')[0]}! 👋`,
+          html: '<span style="color:#a0aec0;font-size:0.9rem;">You have successfully signed in to the dashboard.</span>',
+          icon: 'success',
+          timer: 1800,
+          timerProgressBar: true,
+          showConfirmButton: false,
+          background: '#1a1a2e',
+          color: '#e2e8f0',
+          iconColor: '#10b981',
+          customClass: { timerProgressBar: 'swal-progress-green' }
+        });
+
         setToken(data.token);
         setAdmin(data.admin);
       } else {
-        setAuthError(data.message || 'Login failed. Please check your email and password.');
+        Swal.fire({
+          title: 'Access Denied',
+          text: data.message || 'Invalid email or password. Please try again.',
+          icon: 'error',
+          confirmButtonText: 'Try Again',
+          confirmButtonColor: '#6366f1',
+          background: '#1a1a2e',
+          color: '#e2e8f0',
+          iconColor: '#ef4444'
+        });
       }
     } catch (err) {
-      setAuthError('Connection to server failed. Please try again.');
+      Swal.fire({
+        title: 'Connection Failed',
+        text: 'Unable to reach the server. Please check your connection.',
+        icon: 'warning',
+        confirmButtonText: 'Retry',
+        confirmButtonColor: '#6366f1',
+        background: '#1a1a2e',
+        color: '#e2e8f0',
+        iconColor: '#f59e0b'
+      });
+    }
+  };
+
+  const handleForgotPasswordSubmit = async (e) => {
+    e.preventDefault();
+    if (!forgotEmail.trim()) return;
+    setForgotLoading(true);
+    setForgotSuccess('');
+    setAuthError('');
+    try {
+      const res = await fetch(`${API_BASE}/admin/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setForgotSuccess('A password reset link has been sent to your email address. Please check your Inbox or Spam folder.');
+        setForgotEmail('');
+      } else {
+        setAuthError(data.message || 'An error occurred. Please try again.');
+      }
+    } catch (err) {
+      setAuthError('Unable to connect to the server. Please try again.');
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPasswordSubmit = async (e) => {
+    e.preventDefault();
+    setAuthError('');
+    if (newPassword !== confirmPassword) {
+      setAuthError('Passwords do not match!');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setAuthError('Password must be at least 8 characters long.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_BASE}/admin/reset-password/${resetToken}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: newPassword })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        await Swal.fire({
+          title: 'Success! 🎉',
+          text: 'Your password has been updated. You can now sign in.',
+          icon: 'success',
+          background: '#1a1a2e',
+          color: '#e2e8f0',
+          confirmButtonColor: '#10b981'
+        });
+        window.history.pushState({}, '', '/');
+        setResetToken('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        setAuthError(data.message || 'This reset link has expired or has already been used.');
+      }
+    } catch (err) {
+      setAuthError('Unable to connect to the server. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -330,6 +528,73 @@ export default function App() {
         setAdminStatus(`❌ ${data.message}`);
       }
     } catch { setAdminStatus('❌ Server connection error. Please try again.'); }
+  };
+
+  // Delete Admin
+  const handleDeleteAdmin = async (id, name) => {
+    if (admin && admin.id === id) {
+      Swal.fire({
+        title: 'Banned',
+        text: 'Huwezi kujifuta mwenyewe!',
+        icon: 'error',
+        background: '#1a1a2e',
+        color: '#e2e8f0',
+        confirmButtonColor: '#ef4444'
+      });
+      return;
+    }
+
+    const result = await Swal.fire({
+      title: 'Kufuta Admin?',
+      html: `Je, una uhakika unataka kumfuta msimamizi <strong>"${name}"</strong>? Action hii haiwezi kurudishwa!`,
+      icon: 'warning',
+      iconColor: '#ef4444',
+      showCancelButton: true,
+      confirmButtonText: '🗑️ Ndio, Mfute',
+      cancelButtonText: 'Hapana, Ghairi',
+      background: '#1a1a2e',
+      color: '#e2e8f0',
+      confirmButtonColor: '#ef4444',
+      cancelButtonColor: '#6366f1',
+      backdrop: 'rgba(0,0,0,0.7)',
+    });
+    if (!result.isConfirmed) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/admin/admins/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({
+          title: 'Imefutwa!',
+          text: 'Msimamizi amefutwa kwa mafanikio.',
+          icon: 'success',
+          timer: 1500,
+          showConfirmButton: false,
+          background: '#1a1a2e',
+          color: '#e2e8f0'
+        });
+        fetchAdmins();
+      } else {
+        Swal.fire({
+          title: 'Makosa',
+          text: data.message || 'Imeshindikana kumfuta admin.',
+          icon: 'error',
+          background: '#1a1a2e',
+          color: '#e2e8f0'
+        });
+      }
+    } catch {
+      Swal.fire({
+        title: 'Error',
+        text: 'Imeshindikana kuunganisha na seva.',
+        icon: 'error',
+        background: '#1a1a2e',
+        color: '#e2e8f0'
+      });
+    }
   };
 
   // Create Module
@@ -563,7 +828,7 @@ export default function App() {
     }
   };
 
-  // Render Login Component
+  // Render Login / Password Recovery Component
   if (!token) {
     return (
       <div className="login-wrapper">
@@ -581,7 +846,11 @@ export default function App() {
               MUUNGANO WETU AI
             </h2>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginTop: '6px', fontWeight: 500 }}>
-              Dashibodi ya Usimamizi na Udhibiti 🇹🇿
+              {resetToken 
+                ? 'Set New Password 🔐' 
+                : isForgotView 
+                  ? 'Password Recovery 📧' 
+                  : 'Administration & Control Dashboard 🇹🇿'}
             </p>
           </div>
 
@@ -601,86 +870,199 @@ export default function App() {
             </div>
           )}
 
-          <form onSubmit={handleLogin}>
-            <div className="input-group">
-              <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Barua Pepe (Email)</label>
-              <input
-                type="email"
-                placeholder="admin@muungano.go.tz"
-                className="input-field"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
+          {forgotSuccess && (
+            <div style={{
+              background: 'rgba(16, 185, 129, 0.12)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              color: '#a7f3d0',
+              padding: '12px 16px',
+              borderRadius: '12px',
+              fontSize: '0.88rem',
+              marginBottom: '24px',
+              textAlign: 'center',
+              fontWeight: 500
+            }}>
+              ✅ {forgotSuccess}
             </div>
-            <div className="input-group" style={{ marginBottom: '10px' }}>
-              <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Neno la Siri (Password)</label>
-              <div style={{ position: 'relative' }}>
+          )}
+
+          {/* ── VIEW 1: RESET PASSWORD FORM ──────────────────────── */}
+          {resetToken ? (
+            <form onSubmit={handleResetPasswordSubmit}>
+              <div className="input-group">
+                <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>New Password</label>
                 <input
-                  type={showPassword ? 'text' : 'password'}
+                  type="password"
                   placeholder="••••••••"
                   className="input-field"
-                  style={{ paddingRight: '44px', width: '100%' }}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
                   required
                 />
+              </div>
+
+              <div className="input-group" style={{ marginBottom: '24px' }}>
+                <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Confirm Password</label>
+                <input
+                  type="password"
+                  placeholder="••••••••"
+                  className="input-field"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }} 
+                disabled={loading}
+              >
+                {loading ? <span>Saving...</span> : <span>💾 Save New Password</span>}
+              </button>
+
+              <div style={{ textAlign: 'center', marginTop: '20px' }}>
                 <button
                   type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', cursor: 'pointer',
-                    color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center'
+                  onClick={() => {
+                    window.history.pushState({}, '', '/');
+                    setResetToken('');
+                    setAuthError('');
                   }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem' }}
                 >
-                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  Cancel — Back to Sign In
                 </button>
               </div>
-            </div>
+            </form>
 
-            <div style={{ textAlign: 'right', marginBottom: '24px' }}>
-              <button
-                type="button"
-                onClick={() => setShowForgotMsg(!showForgotMsg)}
-                style={{ 
-                  background: 'none', border: 'none', cursor: 'pointer', 
-                  color: 'var(--secondary)', fontSize: '0.82rem', fontWeight: 600,
-                  transition: 'color 0.2s'
-                }}
-                onMouseOver={(e) => e.target.style.color = 'var(--primary)'}
-                onMouseOut={(e) => e.target.style.color = 'var(--secondary)'}
+          /* ── VIEW 2: FORGOT PASSWORD FORM ─────────────────────── */
+          ) : isForgotView ? (
+            <form onSubmit={handleForgotPasswordSubmit}>
+              <div className="input-group" style={{ marginBottom: '24px' }}>
+                <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Admin Email Address</label>
+                <input
+                  type="email"
+                  placeholder="admin@muungano.go.tz"
+                  className="input-field"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <button 
+                type="submit" 
+                className="btn btn-primary" 
+                style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }} 
+                disabled={forgotLoading}
               >
-                Umesahau Password?
+                {forgotLoading ? <span>Sending email...</span> : <span>✉️ Send Reset Link</span>}
               </button>
-              {showForgotMsg && (
-                <div style={{ 
-                  marginTop: '10px', padding: '12px', 
-                  background: 'rgba(6, 182, 212, 0.06)', border: '1px dashed rgba(6, 182, 212, 0.2)',
-                  borderRadius: '10px', fontSize: '0.82rem', color: 'var(--text-secondary)', textAlign: 'left',
-                  lineHeight: '1.5'
-                }}>
-                  📧 Tafadhali wasiliana na <strong>Msimamizi Mkuu wa Mfumo</strong> ili kubadilisha neno lako la siri kwa usalama.
-                </div>
-              )}
-            </div>
 
-            <button 
-              type="submit" 
-              className="btn btn-primary" 
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }} 
-              disabled={loading}
-            >
-              {loading ? (
-                <span>Kuingia...</span>
-              ) : (
-                <>
-                  <span>🔐</span>
-                  <span>Ingia Kwenye Dashibodi</span>
-                </>
-              )}
-            </button>
-          </form>
+              <div style={{ textAlign: 'center', marginTop: '20px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsForgotView(false);
+                    setForgotSuccess('');
+                    setAuthError('');
+                  }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--secondary)', fontSize: '0.85rem', fontWeight: 600 }}
+                >
+                  ← Back to Sign In
+                </button>
+              </div>
+            </form>
+
+          /* ── VIEW 3: STANDARD LOGIN FORM ──────────────────────── */
+          ) : (
+            <>
+              <form onSubmit={handleLogin}>
+                <div className="input-group">
+                  <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Email Address</label>
+                  <input
+                    type="email"
+                    placeholder="admin@muungano.go.tz"
+                    className="input-field"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                  />
+                </div>
+                <div className="input-group" style={{ marginBottom: '10px' }}>
+                  <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Password</label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="••••••••"
+                      className="input-field"
+                      style={{ paddingRight: '44px', width: '100%' }}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      style={{
+                        position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', cursor: 'pointer',
+                        color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center'
+                      }}
+                    >
+                      {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ textAlign: 'right', marginBottom: '24px' }}>
+                  <button
+                    type="button"
+                    onClick={() => setIsForgotView(true)}
+                    style={{ 
+                      background: 'none', border: 'none', cursor: 'pointer', 
+                      color: 'var(--secondary)', fontSize: '0.82rem', fontWeight: 600,
+                      transition: 'color 0.2s'
+                    }}
+                  >
+                    Forgot Password?
+                  </button>
+                </div>
+
+                <button 
+                  type="submit" 
+                  className="btn btn-primary" 
+                  style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', gap: '10px' }} 
+                  disabled={loading}
+                >
+                  <>
+                    <span>🔐</span>
+                    <span>Sign In to Dashboard</span>
+                  </>
+                </button>
+              </form>
+
+              {/* OR Separator */}
+              <div style={{ 
+                display: 'flex', 
+                alignItems: 'center', 
+                margin: '24px 0', 
+                color: 'var(--text-muted)', 
+                fontSize: '0.8rem' 
+              }}>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }}></div>
+                <span style={{ padding: '0 12px' }}>OR CONTINUE WITH GOOGLE</span>
+                <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.08)' }}></div>
+              </div>
+
+              {/* Google Sign-in Button Container */}
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <div id="google-signin-btn"></div>
+              </div>
+            </>
+          )}
 
           <div style={{ marginTop: '32px', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '20px' }}>
             Muungano Wetu AI &copy; 2026 | Vyuo na Vyuo Vikuu Tanzania Bara
@@ -1953,8 +2335,24 @@ export default function App() {
                         </div>
                         <span style={{
                           padding: '3px 10px', borderRadius: '20px', fontSize: '0.75rem', fontWeight: 600,
-                          background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.3)'
+                          background: 'rgba(16,185,129,0.12)', color: 'var(--success)', border: '1px solid rgba(16,185,129,0.3)',
+                          marginRight: '8px'
                         }}>Admin</span>
+                        {admin && admin.id !== a.id && (
+                          <button
+                            onClick={() => handleDeleteAdmin(a.id, a.full_name)}
+                            style={{
+                              background: 'none', border: 'none', cursor: 'pointer',
+                              color: 'var(--error)', padding: '6px', borderRadius: '6px',
+                              transition: 'background 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                            onMouseOver={e => e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'}
+                            onMouseOut={e => e.currentTarget.style.background = 'none'}
+                            title="Delete Admin"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>

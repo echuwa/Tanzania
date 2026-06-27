@@ -1,19 +1,23 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { Op } = require('sequelize');
 const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, FailedMessage, sequelize } = require('../models');
 const whatsappService = require('../services/whatsappService');
+const { sendPasswordResetEmail, sendAdminWelcomeEmail } = require('../services/emailService');
 
 // 1. Admin Login
 exports.login = async (req, res) => {
-  const { email, password } = req.body;
+  let { email, password } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ message: 'Please provide email and password' });
   }
 
+  const cleanEmail = email.trim().toLowerCase();
+
   try {
-    const user = await User.findOne({ where: { email, role: 'admin' } });
+    const user = await User.findOne({ where: { email: cleanEmail, role: 'admin' } });
     if (!user) {
       return res.status(400).json({ message: 'Administrator account not found' });
     }
@@ -29,13 +33,18 @@ exports.login = async (req, res) => {
       { expiresIn: '24h' }
     );
 
+    // Track last login time for audit purposes
+    user.last_login = new Date();
+    await user.save();
+
     res.json({
       token,
       admin: {
         id: user.id,
         full_name: user.full_name,
         email: user.email,
-        phone_number: user.phone_number
+        phone_number: user.phone_number,
+        last_login: user.last_login
       }
     });
   } catch (error) {
@@ -500,8 +509,13 @@ exports.createAdmin = async (req, res) => {
       is_registered: true
     });
 
+    // Send welcome email in background (don't block the response)
+    sendAdminWelcomeEmail(email, full_name, password).catch(err =>
+      console.error('[Admin Create] Welcome email failed:', err.message)
+    );
+
     res.status(201).json({
-      message: 'New administrator registered successfully! ✅',
+      message: 'New administrator registered successfully! ✅ A welcome email has been sent.',
       admin: {
         id: newAdmin.id,
         full_name: newAdmin.full_name,
@@ -515,4 +529,248 @@ exports.createAdmin = async (req, res) => {
   }
 };
 
+// 19. Forgot Password — Send reset link to admin email
+exports.forgotPassword = async (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ message: 'Please provide your email address' });
+  }
+
+  try {
+    const admin = await User.findOne({ where: { email, role: 'admin' } });
+
+    // SECURITY: Always respond with same message whether email exists or not
+    // This prevents email enumeration attacks
+    if (!admin) {
+      return res.json({
+        message: 'If that email is registered, a password reset link has been sent. Check your inbox.'
+      });
+    }
+
+    // Generate a secure random token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    // Store a hashed version in DB (never store raw token)
+    const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    admin.password_reset_token = hashedToken;
+    admin.password_reset_expires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    await admin.save();
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const resetUrl = `${frontendUrl}/reset-password/${rawToken}`;
+
+    const emailResult = await sendPasswordResetEmail(admin.email, resetUrl, admin.full_name);
+
+    if (emailResult.mock) {
+      // Development mode — return token in response for easy testing
+      return res.json({
+        message: '⚠️ MOCK MODE: Email not sent (GMAIL_USER/GMAIL_APP_PASSWORD not configured). Use the token below for testing.',
+        dev_reset_url: resetUrl
+      });
+    }
+
+    res.json({
+      message: 'Password reset link sent! Please check your email inbox. The link expires in 15 minutes.'
+    });
+  } catch (error) {
+    console.error('Error in forgotPassword:', error);
+    res.status(500).json({ message: 'Error occurred while processing password reset request' });
+  }
+};
+
+// 20. Reset Password — Validate token and set new password
+exports.resetPassword = async (req, res) => {
+  const { token } = req.params;
+  const { password, confirmPassword } = req.body;
+
+  if (!token || !password) {
+    return res.status(400).json({ message: 'Reset token and new password are required' });
+  }
+
+  if (password !== confirmPassword) {
+    return res.status(400).json({ message: 'Passwords do not match' });
+  }
+
+  if (password.length < 8) {
+    return res.status(400).json({ message: 'Password must be at least 8 characters long' });
+  }
+
+  try {
+    // Hash the incoming token to match what's stored in DB
+    const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+
+    const admin = await User.findOne({
+      where: {
+        role: 'admin',
+        password_reset_token: hashedToken,
+        password_reset_expires: { [Op.gt]: new Date() } // token must not be expired
+      }
+    });
+
+    if (!admin) {
+      return res.status(400).json({
+        message: 'Password reset link is invalid or has expired. Please request a new one.'
+      });
+    }
+
+    // Set new hashed password and clear the reset token
+    admin.password = await bcrypt.hash(password, 10);
+    admin.password_reset_token = null;
+    admin.password_reset_expires = null;
+    await admin.save();
+
+    console.log(`[Admin] ✅ Password reset successful for: ${admin.email}`);
+    res.json({ message: 'Password reset successful! ✅ You can now log in with your new password.' });
+  } catch (error) {
+    console.error('Error in resetPassword:', error);
+    res.status(500).json({ message: 'Error occurred while resetting password' });
+  }
+};
+
+// 21. Update Admin Profile (Name, Email, Phone, Password)
+exports.updateProfile = async (req, res) => {
+  const adminId = req.user.id; // comes from verified JWT
+  const { full_name, email, phone_number, current_password, new_password } = req.body;
+
+  try {
+    const admin = await User.findOne({ where: { id: adminId, role: 'admin' } });
+    if (!admin) {
+      return res.status(404).json({ message: 'Administrator account not found' });
+    }
+
+    // Update basic info if provided
+    if (full_name && full_name.trim().length >= 2) {
+      admin.full_name = full_name.trim();
+    }
+
+    if (email && email !== admin.email) {
+      const emailExists = await User.findOne({ where: { email, id: { [Op.ne]: adminId } } });
+      if (emailExists) {
+        return res.status(400).json({ message: 'This email is already in use by another account' });
+      }
+      admin.email = email.toLowerCase().trim();
+    }
+
+    if (phone_number !== undefined) {
+      admin.phone_number = phone_number || null;
+    }
+
+    // Change password (requires current password verification)
+    if (new_password) {
+      if (!current_password) {
+        return res.status(400).json({ message: 'Please provide your current password to set a new one' });
+      }
+      const isMatch = await bcrypt.compare(current_password, admin.password);
+      if (!isMatch) {
+        return res.status(400).json({ message: 'Current password is incorrect' });
+      }
+      if (new_password.length < 8) {
+        return res.status(400).json({ message: 'New password must be at least 8 characters long' });
+      }
+      admin.password = await bcrypt.hash(new_password, 10);
+    }
+
+    await admin.save();
+
+    res.json({
+      message: 'Profile updated successfully! ✅',
+      admin: {
+        id: admin.id,
+        full_name: admin.full_name,
+        email: admin.email,
+        phone_number: admin.phone_number
+      }
+    });
+  } catch (error) {
+    console.error('Error updating admin profile:', error);
+    res.status(500).json({ message: 'Error occurred while updating profile' });
+  }
+};
+
+// 22. Delete Admin Account
+exports.deleteAdmin = async (req, res) => {
+  const { id } = req.params;
+  const requestingAdminId = req.user.id;
+
+  if (id === requestingAdminId) {
+    return res.status(400).json({ message: 'You cannot delete your own admin account' });
+  }
+
+  try {
+    const admin = await User.findOne({ where: { id, role: 'admin' } });
+    if (!admin) {
+      return res.status(404).json({ message: 'Administrator not found' });
+    }
+
+    await admin.destroy();
+    res.json({ message: `Administrator "${admin.full_name}" has been removed successfully. ✅` });
+  } catch (error) {
+    console.error('Error deleting admin:', error);
+    res.status(500).json({ message: 'Error occurred while deleting administrator' });
+  }
+};
+
+// 23. Google Login — Authenticate admin using Google ID Token
+exports.googleLogin = async (req, res) => {
+  const { id_token } = req.body;
+
+  if (!id_token) {
+    return res.status(400).json({ message: 'Google ID token is required' });
+  }
+
+  try {
+    console.log('[Google Auth] Verifying Google ID token...');
+    
+    // Verify the token using Google OAuth 2.0 Token Info API
+    const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${id_token}`);
+    
+    if (!response.ok) {
+      return res.status(401).json({ message: 'Invalid or expired Google ID Token' });
+    }
+
+    const payload = await response.json();
+    const { email, email_verified, name } = payload;
+
+    if (!email_verified) {
+      return res.status(401).json({ message: 'Your Google email is not verified' });
+    }
+
+    // Lookup user in database
+    const user = await User.findOne({ where: { email: email.toLowerCase(), role: 'admin' } });
+
+    if (!user) {
+      return res.status(403).json({
+        message: `Access denied. Google account ${email} is not registered as an administrator in the system.`
+      });
+    }
+
+    // Generate JWT token for dashboard session
+    const token = jwt.sign(
+      { id: user.id, role: user.role, name: user.full_name },
+      process.env.JWT_SECRET,
+      { expiresIn: '24h' }
+    );
+
+    // Track last login time
+    user.last_login = new Date();
+    await user.save();
+
+    console.log(`[Google Auth] ✅ Google Login successful for: ${email}`);
+
+    res.json({
+      token,
+      admin: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        phone_number: user.phone_number,
+        last_login: user.last_login
+      }
+    });
+  } catch (error) {
+    console.error('[Google Auth] Error during Google verification:', error);
+    res.status(500).json({ message: 'Server error occurred during Google authentication' });
+  }
+};
 

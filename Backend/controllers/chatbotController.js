@@ -3,6 +3,7 @@ const aiService = require('../services/aiService');
 const whatsappService = require('../services/whatsappService');
 const telegramService = require('../services/telegramService');
 const smsService = require('../services/smsService');
+const ussdService = require('../services/ussdService');
 
 // ─────────────────────────────────────────────────────────────
 //  FIX 4: Per-user Rate Limiting (Anti-Spam)
@@ -487,3 +488,28 @@ exports.handleMockWebchat = async (req, res) => {
     res.status(500).json({ message: 'Chatbot error occurred while processing message' });
   }
 };
+
+/**
+ * Controller webhook for Africa's Talking USSD API
+ */
+exports.handleUSSDWebhook = async (req, res) => {
+  const { sessionId, phoneNumber, serviceCode, text } = req.body;
+
+  if (!sessionId || !phoneNumber) {
+    return res.status(400).send('Error: Missing USSD parameters');
+  }
+
+  try {
+    console.log(`[USSD IN] Session: ${sessionId} | Phone: ${phoneNumber} | Input: "${text}"`);
+    const response = await ussdService.handleUSSD(sessionId, phoneNumber, text || '');
+    
+    // USSD requires plain text Content-Type
+    res.setHeader('Content-Type', 'text/plain');
+    res.status(200).send(response);
+  } catch (error) {
+    console.error('[USSD Webhook] Error:', error);
+    res.setHeader('Content-Type', 'text/plain');
+    res.status(200).send('END System error occurred. Please try again.');
+  }
+};
+

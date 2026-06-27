@@ -50,6 +50,20 @@ const User = sequelize.define('User', {
     type: DataTypes.JSON,
     allowNull: true,
     defaultValue: null // Stores active quiz/module-selection state
+  },
+  // ── Password Reset (Forgot Password Flow) ──────────────────
+  password_reset_token: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
+  password_reset_expires: {
+    type: DataTypes.DATE,
+    allowNull: true
+  },
+  // ── Audit / Security ───────────────────────────────────────
+  last_login: {
+    type: DataTypes.DATE,
+    allowNull: true
   }
 }, {
   timestamps: true,
