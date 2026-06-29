@@ -26,6 +26,7 @@ router.get('/stats', verifyToken, isAdmin, adminController.getStats);
 
 // Users (students) — Standard sub-admin only
 router.get('/users', verifyToken, isAdmin, isAdminOnly, adminController.getUsers);
+router.delete('/users/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteUser);
 
 // Quiz / Module Management — Super admin only
 router.get('/quizzes', verifyToken, isAdmin, isSuperAdminOnly, adminController.getQuizzes);
@@ -40,14 +41,22 @@ router.post('/stories', verifyToken, isAdmin, isSuperAdminOnly, adminController.
 router.put('/stories/:id', verifyToken, isAdmin, isSuperAdminOnly, adminController.updateStory);
 router.delete('/stories/:id', verifyToken, isAdmin, isSuperAdminOnly, adminController.deleteStory);
 
-// Analytics
+// Analytics — old chart-based (kept for backward compat)
 router.get('/analytics', verifyToken, isAdmin, adminController.getAnalytics);
 
-// Broadcast — Send WhatsApp message to all users (Standard sub-admin only)
+// System Analytics — new real-data dashboard
+router.get('/system-analytics', verifyToken, isAdmin, adminController.getSystemAnalytics);
+
+// Broadcast — Send WhatsApp/SMS message to all users (Standard sub-admin only)
 router.post('/broadcast', verifyToken, isAdmin, isAdminOnly, adminController.broadcastMessage);
+
+// Broadcast Jobs — list and delete
+router.get('/broadcast-jobs', verifyToken, isAdmin, isAdminOnly, adminController.getBroadcastJobs);
+router.delete('/broadcast-jobs/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteBroadcastJob);
 
 // Failed Messages Log (Standard sub-admin only)
 router.get('/failed-messages', verifyToken, isAdmin, isAdminOnly, adminController.getFailedMessages);
+router.delete('/failed-messages/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteFailedMessage);
 
 // Delete Chat Log (Standard sub-admin only)
 router.delete('/chat-logs/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteChatLog);

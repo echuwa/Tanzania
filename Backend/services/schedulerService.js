@@ -1,6 +1,7 @@
 const cron = require('node-cron');
 const { User } = require('../models');
 const whatsappService = require('./whatsappService');
+const jobProcessor = require('./jobProcessor');
 
 // ─────────────────────────────────────────────────────────────
 //  Daily Reminder Scheduler
@@ -27,7 +28,7 @@ function startScheduler() {
         return;
       }
 
-      console.log(`[Scheduler] 📤 Sending reminders to ${whatsappUsers.length} users...`);
+      console.log(`[Scheduler] 📤 Enqueuing daily reminders to ${whatsappUsers.length} users...`);
 
       // Get today's motivational tip (rotates daily)
       const tips = [
@@ -41,24 +42,18 @@ function startScheduler() {
       ];
       const todayTip = tips[new Date().getDay() % tips.length];
 
-      // Send to each user with a small delay to avoid Meta rate limits
-      let sent = 0;
-      for (const user of whatsappUsers) {
+      const recipients = whatsappUsers.map(user => {
         const name = user.full_name || 'Friend';
-        const message =
-          `🌅 *Good morning, ${name}!* \n\n` +
-          `${todayTip}\n\n` +
-          `Your current score: *${user.points} pts* 🏅\n\n` +
-          `Type *QUIZ* to earn points, or *STORY* to read today's history! 🇹🇿`;
+        return {
+          phone_number: user.phone_number,
+          message: `🌅 *Good morning, ${name}!* \n\n` +
+            `${todayTip}\n\n` +
+            `Your current score: *${user.points} pts* 🏅\n\n` +
+            `Type *QUIZ* to earn points, or *STORY* to read today's history! 🇹🇿`
+        };
+      });
 
-        const result = await whatsappService.sendWhatsAppMessage(user.phone_number, message, 'reminder');
-        if (result.success) sent++;
-
-        // 500ms delay between sends to avoid hitting Meta rate limits
-        await new Promise(r => setTimeout(r, 500));
-      }
-
-      console.log(`[Scheduler] ✅ Daily reminders sent: ${sent}/${whatsappUsers.length} successful`);
+      await jobProcessor.enqueueJob(`Daily Reminder: ${todayTip.substring(0, 40)}...`, recipients, 'reminder');
     } catch (err) {
       console.error('[Scheduler] ❌ Error sending daily reminders:', err.message);
     }
@@ -112,7 +107,7 @@ function startScheduler() {
         return;
       }
 
-      console.log(`[Scheduler] 🎉 Found National Event: ${event.title}. Broadcasting...`);
+      console.log(`[Scheduler] 🎉 Found National Event: ${event.title}. Enqueuing broadcast...`);
 
       // Get all registered users
       const users = await User.findAll({
@@ -124,22 +119,18 @@ function startScheduler() {
 
       if (whatsappUsers.length === 0) return;
 
-      let sent = 0;
-      for (const user of whatsappUsers) {
+      const recipients = whatsappUsers.map(user => {
         const name = user.full_name || 'Friend';
-        const message = 
-          `🇹🇿 *${event.title}* 🇹🇿\n\n` +
-          `Dear ${name},\n\n` +
-          `${event.description}\n\n` +
-          `Let us continue to uphold our peace and national unity. Type *QUIZ* to test your knowledge of today's milestone! 🏆`;
+        return {
+          phone_number: user.phone_number,
+          message: `🇹🇿 *${event.title}* 🇹🇿\n\n` +
+            `Dear ${name},\n\n` +
+            `${event.description}\n\n` +
+            `Let us continue to uphold our peace and national unity. Type *QUIZ* to test your knowledge of today's milestone! 🏆`
+        };
+      });
 
-        const result = await whatsappService.sendWhatsAppMessage(user.phone_number, message, 'broadcast');
-        if (result.success) sent++;
-
-        await new Promise(r => setTimeout(r, 600)); // 600ms delay to avoid rate limiting
-      }
-
-      console.log(`[Scheduler] ✅ National event broadcast completed: ${sent}/${whatsappUsers.length} sent.`);
+      await jobProcessor.enqueueJob(`National Event: ${event.title}`, recipients, 'broadcast');
     } catch (error) {
       console.error('[Scheduler] ❌ Error in national event scheduler:', error.message);
     }

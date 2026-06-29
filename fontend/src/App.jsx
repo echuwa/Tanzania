@@ -48,11 +48,14 @@ export default function App() {
   const [inviteConfirmPassword, setInviteConfirmPassword] = useState('');
   const [inviteSuccess, setInviteSuccess] = useState('');
   const [inviteLoading, setInviteLoading] = useState(false);
+  const [showInvitePassword, setShowInvitePassword] = useState(false);
+  const [showInviteConfirmPassword, setShowInviteConfirmPassword] = useState(false);
 
   // Admin Management state
   const [admins, setAdmins] = useState([]);
   const [newAdmin, setNewAdmin] = useState({ full_name: '', email: '', phone_number: '' });
   const [adminStatus, setAdminStatus] = useState('');
+  const [devInviteUrl, setDevInviteUrl] = useState('');
   
   // UI Navigation
   const [activeTab, setActiveTab] = useState('overview');
@@ -63,6 +66,8 @@ export default function App() {
   const [stories, setStories] = useState([]);
   const [users, setUsers] = useState([]);
   const [analytics, setAnalytics] = useState(null);
+  const [systemAnalytics, setSystemAnalytics] = useState(null);
+  const [broadcastJobs, setBroadcastJobs] = useState([]);
 
   // Broadcast state
   const [broadcastMsg, setBroadcastMsg] = useState('');
@@ -168,7 +173,7 @@ export default function App() {
     } catch (err) { console.error(err); }
   };
 
-  // Load analytics
+  // Load analytics (old chart-based)
   const fetchAnalytics = async () => {
     if (!token) return;
     try {
@@ -177,6 +182,30 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) setAnalytics(data);
+    } catch (err) { console.error(err); }
+  };
+
+  // Load real system analytics
+  const fetchSystemAnalytics = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/system-analytics`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setSystemAnalytics(data);
+    } catch (err) { console.error(err); }
+  };
+
+  // Load broadcast jobs
+  const fetchBroadcastJobs = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/broadcast-jobs`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (res.ok) setBroadcastJobs(data);
     } catch (err) { console.error(err); }
   };
 
@@ -189,6 +218,42 @@ export default function App() {
       });
       const data = await res.json();
       if (res.ok) setFailedMessages(data);
+    } catch (err) { console.error(err); }
+  };
+
+  // Delete a user
+  const handleDeleteUser = async (userId, userName) => {
+    if (!window.confirm(`Delete user "${userName}"? This cannot be undone.`)) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/users/${userId}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) setUsers(prev => prev.filter(u => u.id !== userId));
+    } catch (err) { console.error(err); }
+  };
+
+  // Delete a failed message
+  const handleDeleteFailedMessage = async (id) => {
+    if (!window.confirm('Delete this failed message record?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/failed-messages/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) setFailedMessages(prev => prev.filter(m => m.id !== id));
+    } catch (err) { console.error(err); }
+  };
+
+  // Delete a broadcast job
+  const handleDeleteBroadcastJob = async (id) => {
+    if (!window.confirm('Delete this broadcast job record?')) return;
+    try {
+      const res = await fetch(`${API_BASE}/admin/broadcast-jobs/${id}`, {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) setBroadcastJobs(prev => prev.filter(j => j.id !== id));
     } catch (err) { console.error(err); }
   };
 
@@ -264,6 +329,11 @@ export default function App() {
         setInvitePassword('');
         setInviteConfirmPassword('');
         window.history.pushState({}, '', '/');
+        // Clear any existing session to ensure we show the login page
+        localStorage.removeItem('adminToken');
+        localStorage.removeItem('adminInfo');
+        setToken('');
+        setAdmin(null);
         setTimeout(() => {
           setInviteToken('');
           setInviteSuccess('');
@@ -581,6 +651,7 @@ export default function App() {
   const handleCreateAdmin = async (e) => {
     e.preventDefault();
     setAdminStatus('');
+    setDevInviteUrl('');
     try {
       const res = await fetch(`${API_BASE}/admin/admins`, {
         method: 'POST',
@@ -590,6 +661,9 @@ export default function App() {
       const data = await res.json();
       if (res.ok) {
         setAdminStatus(`✅ ${data.message}`);
+        if (data.dev_invite_url) {
+          setDevInviteUrl(data.dev_invite_url);
+        }
         setNewAdmin({ full_name: '', email: '', phone_number: '' });
         fetchAdmins();
       } else {
@@ -897,7 +971,7 @@ export default function App() {
   };
 
   // Render Login / Password Recovery Component
-  if (!token) {
+  if (!token || inviteToken || resetToken) {
     return (
       <div className="login-wrapper">
         {/* Futuristic background components */}
@@ -980,27 +1054,55 @@ export default function App() {
 
               <div className="input-group">
                 <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Set Your Password</label>
-                <input
-                  type="password"
-                  placeholder="Choose a strong password..."
-                  className="input-field"
-                  value={invitePassword}
-                  onChange={(e) => setInvitePassword(e.target.value)}
-                  required
-                  minLength={6}
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showInvitePassword ? 'text' : 'password'}
+                    placeholder="Choose a strong password..."
+                    className="input-field"
+                    style={{ paddingRight: '44px', width: '100%' }}
+                    value={invitePassword}
+                    onChange={(e) => setInvitePassword(e.target.value)}
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowInvitePassword(!showInvitePassword)}
+                    style={{
+                      position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center'
+                    }}
+                  >
+                    {showInvitePassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <div className="input-group" style={{ marginBottom: '24px' }}>
                 <label className="input-label" style={{ fontSize: '0.8rem', marginBottom: '4px' }}>Confirm Password</label>
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  className="input-field"
-                  value={inviteConfirmPassword}
-                  onChange={(e) => setInviteConfirmPassword(e.target.value)}
-                  required
-                />
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type={showInviteConfirmPassword ? 'text' : 'password'}
+                    placeholder="••••••••"
+                    className="input-field"
+                    style={{ paddingRight: '44px', width: '100%' }}
+                    value={inviteConfirmPassword}
+                    onChange={(e) => setInviteConfirmPassword(e.target.value)}
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowInviteConfirmPassword(!showInviteConfirmPassword)}
+                    style={{
+                      position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', cursor: 'pointer',
+                      color: 'var(--text-muted)', padding: '4px', display: 'flex', alignItems: 'center'
+                    }}
+                  >
+                    {showInviteConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
               </div>
 
               <button
@@ -1275,7 +1377,7 @@ export default function App() {
           <button
             className={`btn ${activeTab === 'analytics' ? 'btn-primary' : 'btn-secondary'}`}
             style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-            onClick={() => { setActiveTab('analytics'); fetchAnalytics(); }}
+            onClick={() => { setActiveTab('analytics'); fetchSystemAnalytics(); }}
           >
             <BarChart2 size={18} /> Analytics
           </button>
@@ -1285,7 +1387,7 @@ export default function App() {
             <button
               className={`btn ${activeTab === 'broadcast' ? 'btn-primary' : 'btn-secondary'}`}
               style={{ justifyContent: 'flex-start', padding: '12px 16px' }}
-              onClick={() => { setActiveTab('broadcast'); fetchFailedMessages(); }}
+              onClick={() => { setActiveTab('broadcast'); fetchFailedMessages(); fetchBroadcastJobs(); }}
             >
               <Megaphone size={18} /> Send Broadcast
             </button>
@@ -2239,6 +2341,7 @@ export default function App() {
                       <th>Telegram ID</th>
                       <th>Points</th>
                       <th>Registration Date</th>
+                      <th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2250,113 +2353,151 @@ export default function App() {
                         <td>{u.telegram_id || <span style={{ color: 'var(--text-muted)' }}>—</span>}</td>
                         <td><span style={{ color: 'var(--secondary)', fontWeight: 700 }}>{u.points} pts</span></td>
                         <td style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{new Date(u.createdAt).toLocaleDateString()}</td>
+                        <td>
+                          <button
+                            onClick={() => handleDeleteUser(u.id, u.full_name || u.phone_number)}
+                            style={{ background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.3)', color: 'var(--error)', borderRadius: '6px', padding: '4px 10px', cursor: 'pointer', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                          >
+                            🗑️ Delete
+                          </button>
+                        </td>
                       </tr>
                     ))}
                     {users.length === 0 && (
-                      <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No registered users found yet.</td></tr>
+                      <tr><td colSpan="7" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No registered users found yet.</td></tr>
                     )}
                   </tbody>
+
                 </table>
               </div>
             </div>
           </div>
         )}
 
-        {/* TAB 6: ANALYTICS */}
+        {/* TAB 6: ANALYTICS — Real System Overview */}
         {activeTab === 'analytics' && (
-          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '30px' }}>
-            <div>
-              <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>System Analytics</h1>
-              <p style={{ color: 'var(--text-secondary)' }}>Detailed statistics on usage, user growth, and quiz performance.</p>
+          <div className="animate-fade-in" style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '12px' }}>
+              <div>
+                <h1 className="text-gradient" style={{ fontSize: '2.2rem', fontWeight: 800 }}>System Overview</h1>
+                <p style={{ color: 'var(--text-secondary)' }}>Live statistics pulled directly from the database.</p>
+              </div>
+              <button className="btn btn-secondary" style={{ padding: '10px 18px', fontSize: '0.85rem' }} onClick={fetchSystemAnalytics}>
+                🔄 Refresh
+              </button>
             </div>
 
-            {/* Summary KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
+            {/* KPI Cards Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '14px' }}>
               {[
-                { label: 'Registered', value: analytics?.summary?.totalRegistered ?? '—', color: 'var(--primary)' },
-                { label: 'Unregistered', value: analytics?.summary?.totalUnregistered ?? '—', color: 'var(--warning)' },
-                { label: 'Quiz Attempts', value: analytics?.summary?.totalQuizAttempts ?? '—', color: 'var(--secondary)' },
-                { label: 'Average Score', value: analytics?.summary?.avgScore ? `${analytics.summary.avgScore} pts` : '—', color: 'var(--success)' },
+                { label: 'Total Users', value: systemAnalytics?.summary?.totalUsers ?? '—', icon: '👥', color: 'var(--primary)' },
+                { label: 'Registered', value: systemAnalytics?.summary?.registeredUsers ?? '—', icon: '✅', color: 'var(--success)' },
+                { label: 'WhatsApp Users', value: systemAnalytics?.summary?.whatsappUsers ?? '—', icon: '📱', color: '#25d366' },
+                { label: 'Telegram Users', value: systemAnalytics?.summary?.telegramUsers ?? '—', icon: '✈️', color: '#229ed9' },
+                { label: 'Total Messages', value: systemAnalytics?.summary?.totalMessages ?? '—', icon: '💬', color: 'var(--secondary)' },
+                { label: 'Messages (7 days)', value: systemAnalytics?.summary?.messagesThisWeek ?? '—', icon: '📈', color: 'var(--warning)' },
+                { label: 'Broadcasts Sent', value: systemAnalytics?.summary?.completedBroadcasts ?? '—', icon: '📢', color: 'var(--primary)' },
+                { label: 'Failed (7 days)', value: systemAnalytics?.summary?.failedThisWeek ?? '—', icon: '❌', color: 'var(--error)' },
+                { label: 'Quiz Attempts', value: systemAnalytics?.summary?.totalQuizAttempts ?? '—', icon: '🎯', color: 'var(--secondary)' },
               ].map(card => (
-                <div key={card.label} className="glass-card" style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: '2rem', fontWeight: 800, color: card.color }}>{card.value}</div>
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{card.label}</div>
+                <div key={card.label} className="glass-card" style={{ textAlign: 'center', padding: '20px 14px' }}>
+                  <div style={{ fontSize: '1.6rem', marginBottom: '6px' }}>{card.icon}</div>
+                  <div style={{ fontSize: '1.8rem', fontWeight: 800, color: card.color }}>{card.value}</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: '4px' }}>{card.label}</div>
                 </div>
               ))}
             </div>
 
-            {/* New Users Per Day */}
-            <div className="glass-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                <BarChart2 style={{ color: 'var(--primary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>New Users — Last 14 Days</h3>
-              </div>
-              {analytics?.newUsersPerDay?.length > 0 ? (
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px' }}>
-                  {analytics.newUsersPerDay.map(d => {
-                    const max = Math.max(...analytics.newUsersPerDay.map(x => parseInt(x.count)), 1);
-                    const pct = (parseInt(d.count) / max) * 100;
-                    return (
-                      <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{d.count}</div>
-                        <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: 'var(--primary)', borderRadius: '4px 4px 0 0', opacity: 0.85 }} />
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{d.date?.slice(5)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Not enough data yet.</p>}
-            </div>
-
-            {/* Messages Per Day */}
-            <div className="glass-card">
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
-                <MessageSquare style={{ color: 'var(--secondary)' }} size={20} />
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Messages Per Day — Last 14 Days</h3>
-              </div>
-              {analytics?.messagesPerDay?.length > 0 ? (
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '6px', height: '120px' }}>
-                  {analytics.messagesPerDay.map(d => {
-                    const max = Math.max(...analytics.messagesPerDay.map(x => parseInt(x.count)), 1);
-                    const pct = (parseInt(d.count) / max) * 100;
-                    return (
-                      <div key={d.date} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
-                        <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{d.count}</div>
-                        <div style={{ width: '100%', height: `${Math.max(pct, 4)}%`, background: 'var(--secondary)', borderRadius: '4px 4px 0 0', opacity: 0.85 }} />
-                        <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)', writingMode: 'vertical-rl', transform: 'rotate(180deg)' }}>{d.date?.slice(5)}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : <p style={{ color: 'var(--text-muted)', textAlign: 'center' }}>Not enough data yet.</p>}
-            </div>
-
-            {/* Peak Hours + Channel Breakdown */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {/* Channel Breakdown + Top Users */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              {/* Channel Breakdown */}
               <div className="glass-card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>⏰ Peak Usage Hours</h3>
-                {analytics?.peakHours?.slice(0, 5).map((h, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Hour {String(Math.round(h.hour)).padStart(2,'0')}:00</span>
-                    <span style={{ fontWeight: 700, color: 'var(--primary)' }}>{h.count} msg</span>
-                  </div>
-                ))}
-                {!analytics?.peakHours?.length && <p style={{ color: 'var(--text-muted)' }}>No data.</p>}
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>📡 Messages by Channel</h3>
+                {systemAnalytics?.channelBreakdown?.length > 0 ? systemAnalytics.channelBreakdown.map((ch, i) => {
+                  const total = systemAnalytics.channelBreakdown.reduce((s, x) => s + parseInt(x.count), 0);
+                  const pct = Math.round((parseInt(ch.count) / total) * 100);
+                  return (
+                    <div key={i} style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <span className={`badge badge-${ch.channel}`}>{ch.channel}</span>
+                        <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>{ch.count} ({pct}%)</span>
+                      </div>
+                      <div style={{ background: 'rgba(255,255,255,0.06)', borderRadius: '4px', height: '6px' }}>
+                        <div style={{ width: `${pct}%`, height: '100%', background: 'var(--secondary)', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                  );
+                }) : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No messages yet.</p>}
               </div>
 
+              {/* Top 5 Users */}
               <div className="glass-card">
-                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>📡 Communication Channels</h3>
-                {analytics?.channelBreakdown?.map((ch, i) => (
-                  <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <span className={`badge badge-${ch.channel}`}>{ch.channel}</span>
-                    <span style={{ fontWeight: 700, color: 'var(--secondary)' }}>{ch.count} messages</span>
+                <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>🏆 Top 5 Users</h3>
+                {systemAnalytics?.topUsers?.length > 0 ? systemAnalytics.topUsers.map((u, i) => (
+                  <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontSize: '1.1rem' }}>{['🥇','🥈','🥉','4️⃣','5️⃣'][i]}</span>
+                      <span style={{ fontSize: '0.88rem', color: 'var(--text-primary)' }}>{u.full_name || (u.phone_number ? `+${u.phone_number}` : `TG:${u.telegram_id?.substring(0,6)}`)}</span>
+                    </div>
+                    <span style={{ fontWeight: 700, color: 'var(--secondary)', fontSize: '0.88rem' }}>{u.points} pts</span>
                   </div>
-                ))}
-                {!analytics?.channelBreakdown?.length && <p style={{ color: 'var(--text-muted)' }}>No data.</p>}
+                )) : <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>No users yet.</p>}
               </div>
             </div>
+
+            {/* Recent Broadcasts */}
+            <div className="glass-card">
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>📢 Recent Broadcast Jobs</h3>
+              <div className="table-container">
+                <table className="premium-table">
+                  <thead><tr><th>Message Preview</th><th>Type</th><th>Status</th><th>Sent</th><th>Failed</th><th>Date</th></tr></thead>
+                  <tbody>
+                    {systemAnalytics?.recentBroadcasts?.map(job => (
+                      <tr key={job.id}>
+                        <td style={{ maxWidth: '220px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{job.message}</td>
+                        <td><span className={`badge ${job.job_type === 'broadcast' ? 'badge-whatsapp' : 'badge-telegram'}`}>{job.job_type}</span></td>
+                        <td><span style={{ color: job.status === 'completed' ? 'var(--success)' : job.status === 'failed' ? 'var(--error)' : 'var(--warning)', fontWeight: 600 }}>{job.status}</span></td>
+                        <td style={{ color: 'var(--success)', fontWeight: 700 }}>{job.sent_count}</td>
+                        <td style={{ color: 'var(--error)', fontWeight: 700 }}>{job.failed_count}</td>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{new Date(job.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                    {!systemAnalytics?.recentBroadcasts?.length && <tr><td colSpan="6" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No broadcasts sent yet.</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Recent Failed Messages */}
+            <div className="glass-card">
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '16px' }}>❌ Recent Failed Deliveries</h3>
+              <div className="table-container">
+                <table className="premium-table">
+                  <thead><tr><th>Phone</th><th>Channel</th><th>Error Code</th><th>Reason</th><th>Date</th></tr></thead>
+                  <tbody>
+                    {systemAnalytics?.recentFailed?.map(f => (
+                      <tr key={f.id}>
+                        <td><strong>{f.phone_number}</strong></td>
+                        <td><span className={`badge badge-${f.channel}`}>{f.channel}</span></td>
+                        <td style={{ color: 'var(--error)', fontWeight: 700 }}>{f.error_code}</td>
+                        <td style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', maxWidth: '240px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.error_message}</td>
+                        <td style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{new Date(f.createdAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
+                    {!systemAnalytics?.recentFailed?.length && <tr><td colSpan="5" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>No failed deliveries. 🎉</td></tr>}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {!systemAnalytics && (
+              <div className="glass-card" style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '40px' }}>
+                ⏳ Loading system data...
+              </div>
+            )}
           </div>
         )}
+
 
         {/* TAB 7: BROADCAST */}
         {activeTab === 'broadcast' && (
@@ -2547,6 +2688,54 @@ export default function App() {
                     border: `1px solid ${adminStatus.startsWith('✅') ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`
                   }}>
                     {adminStatus}
+                  </div>
+                )}
+
+                {devInviteUrl && (
+                  <div style={{
+                    marginTop: '16px', padding: '16px', borderRadius: '12px',
+                    background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)',
+                    fontSize: '0.85rem', color: '#f59e0b', lineHeight: '1.6'
+                  }}>
+                    <strong style={{ color: '#fbbf24', display: 'block', marginBottom: '8px' }}>⚠️ Localhost Mode:</strong>
+                    Msimamizi huyu hajaweza kutumiwa barua pepe kwa sababu hauko kwenye production (SMTP missing). Unaweza kutumia kiungo hiki kukamilisha usajili na kuweka password yake:
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                      <input 
+                        type="text" 
+                        readOnly 
+                        value={devInviteUrl} 
+                        style={{
+                          flex: 1,
+                          background: 'rgba(0,0,0,0.3)',
+                          border: '1px solid rgba(245,158,11,0.3)',
+                          color: '#fff',
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontFamily: 'monospace'
+                        }}
+                        onClick={(e) => e.target.select()}
+                      />
+                      <a 
+                        href={devInviteUrl} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{
+                          background: '#f59e0b',
+                          color: '#000',
+                          padding: '6px 12px',
+                          borderRadius: '6px',
+                          fontSize: '0.8rem',
+                          fontWeight: 700,
+                          textDecoration: 'none',
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                      >
+                        Fungua
+                      </a>
+                    </div>
                   </div>
                 )}
               </div>

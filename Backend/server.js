@@ -161,6 +161,10 @@ async function startServer() {
       // Start the daily reminder scheduler
       const { startScheduler } = require('./services/schedulerService');
       startScheduler();
+
+      // Start the background job processor
+      const { startJobProcessor } = require('./services/jobProcessor');
+      startJobProcessor();
     });
   } catch (error) {
     console.error('Unable to connect to the database and start server:', error);

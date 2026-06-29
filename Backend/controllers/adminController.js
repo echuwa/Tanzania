@@ -5,6 +5,7 @@ const { Op } = require('sequelize');
 const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, FailedMessage, sequelize } = require('../models');
 const whatsappService = require('../services/whatsappService');
 const { sendPasswordResetEmail, sendAdminWelcomeEmail, sendAdminInviteEmail } = require('../services/emailService');
+const jobProcessor = require('../services/jobProcessor');
 
 // 1. Admin Login
 exports.login = async (req, res) => {
@@ -461,22 +462,18 @@ exports.broadcastMessage = async (req, res) => {
       return res.status(404).json({ message: 'No WhatsApp users found' });
     }
 
-    // Respond to admin immediately with count
+    // Enqueue the job for processor
+    const recipients = whatsappUsers.map(user => ({
+      phone_number: user.phone_number,
+      message: `📢 *Broadcast from MUUNGANO WETU AI*\n\n${message}\n\n_— The Muungano Wetu AI Team 🇹🇿_`
+    }));
+
+    await jobProcessor.enqueueJob(message, recipients, 'broadcast');
+
     res.json({
-      message: `Message is being sent to ${whatsappUsers.length} users. This will take a few minutes.`,
+      message: `Message is being sent to ${whatsappUsers.length} users in the background. Check Broadcast Jobs for status.`,
       total: whatsappUsers.length
     });
-
-    // Send in background with delay to respect Meta rate limits
-    let sent = 0;
-    for (const user of whatsappUsers) {
-      const personalizedMsg = `📢 *Broadcast from MUUNGANO WETU AI*\n\n${message}\n\n_— The Muungano Wetu AI Team 🇹🇿_`;
-      const result = await whatsappService.sendWhatsAppMessage(user.phone_number, personalizedMsg, 'broadcast');
-      if (result.success) sent++;
-      await new Promise(r => setTimeout(r, 600)); // 600ms delay between sends
-    }
-
-    console.log(`[Broadcast] ✅ Complete — ${sent}/${whatsappUsers.length} delivered`);
   } catch (error) {
     console.error('Error broadcasting message:', error);
     // res already sent, just log
@@ -566,13 +563,27 @@ exports.createAdmin = async (req, res) => {
       verification_token_expires: tokenExpires
     });
 
-    // Send invitation email in background
+    // Send invitation email
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
     const inviteUrl = `${frontendUrl}/verify-invite/${token}`;
 
-    sendAdminInviteEmail(email, full_name, inviteUrl).catch(err =>
-      console.error('[Admin Invite] Invitation email failed:', err.message)
-    );
+    const emailResult = await sendAdminInviteEmail(email, full_name, inviteUrl).catch(err => {
+      console.error('[Admin Invite] Invitation email failed:', err.message);
+      return { success: false, error: err.message };
+    });
+
+    if (emailResult && emailResult.mock) {
+      return res.status(201).json({
+        message: '⚠️ MOCK MODE: New administrator created. Email was not sent because GMAIL credentials are not configured. Use the link below to verify this account in your browser.',
+        dev_invite_url: inviteUrl,
+        admin: {
+          id: newAdmin.id,
+          full_name: newAdmin.full_name,
+          email: newAdmin.email,
+          phone_number: newAdmin.phone_number
+        }
+      });
+    }
 
     res.status(201).json({
       message: 'New administrator invited successfully! ✅ An invitation email with a verification link has been sent.',
@@ -875,6 +886,150 @@ exports.googleLogin = async (req, res) => {
   } catch (error) {
     console.error('[Google Auth] Error during Google verification:', error);
     res.status(500).json({ message: 'Server error occurred during Google authentication' });
+  }
+};
+
+// 25. Delete a User (student)
+exports.deleteUser = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findOne({ where: { id, role: 'user' } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    await user.destroy();
+    res.json({ message: `User "${user.full_name || user.phone_number}" deleted successfully. ✅` });
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({ message: 'Error occurred while deleting user' });
+  }
+};
+
+// 26. Delete a Failed Message log entry
+exports.deleteFailedMessage = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const record = await FailedMessage.findByPk(id);
+    if (!record) {
+      return res.status(404).json({ message: 'Failed message record not found' });
+    }
+    await record.destroy();
+    res.json({ message: 'Failed message record deleted. ✅' });
+  } catch (error) {
+    console.error('Error deleting failed message:', error);
+    res.status(500).json({ message: 'Error occurred while deleting failed message' });
+  }
+};
+
+// 27. Delete a Broadcast Job
+exports.deleteBroadcastJob = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const { BroadcastJob } = require('../models');
+    const job = await BroadcastJob.findByPk(id);
+    if (!job) {
+      return res.status(404).json({ message: 'Broadcast job not found' });
+    }
+    await job.destroy();
+    res.json({ message: 'Broadcast job deleted. ✅' });
+  } catch (error) {
+    console.error('Error deleting broadcast job:', error);
+    res.status(500).json({ message: 'Error occurred while deleting broadcast job' });
+  }
+};
+
+// 28. Get Broadcast Jobs list
+exports.getBroadcastJobs = async (req, res) => {
+  try {
+    const { BroadcastJob } = require('../models');
+    const jobs = await BroadcastJob.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 30,
+      attributes: ['id', 'message', 'status', 'job_type', 'sent_count', 'failed_count', 'createdAt']
+    });
+    res.json(jobs);
+  } catch (error) {
+    console.error('Error fetching broadcast jobs:', error);
+    res.status(500).json({ message: 'Error occurred while retrieving broadcast jobs' });
+  }
+};
+
+// 29. Get System Analytics (real data for dashboard)
+exports.getSystemAnalytics = async (req, res) => {
+  try {
+    const { BroadcastJob } = require('../models');
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Summary counts
+    const totalUsers        = await User.count({ where: { role: 'user' } });
+    const registeredUsers   = await User.count({ where: { role: 'user', is_registered: true } });
+    const totalMessages     = await ChatLog.count();
+    const messagesThisWeek  = await ChatLog.count({ where: { createdAt: { [Op.gte]: sevenDaysAgo } } });
+    const totalBroadcasts   = await BroadcastJob.count();
+    const completedBroadcasts = await BroadcastJob.count({ where: { status: 'completed' } });
+    const failedThisWeek    = await FailedMessage.count({ where: { createdAt: { [Op.gte]: sevenDaysAgo } } });
+    const totalFailed       = await FailedMessage.count();
+    const totalQuizAttempts = await QuizAttempt.count();
+
+    // Channel breakdown from chat logs
+    const channelBreakdown = await ChatLog.findAll({
+      attributes: [
+        'channel',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['channel'],
+      raw: true
+    });
+
+    // Top 5 users by points
+    const topUsers = await User.findAll({
+      where: { role: 'user', is_registered: true },
+      order: [['points', 'DESC']],
+      limit: 5,
+      attributes: ['id', 'full_name', 'phone_number', 'telegram_id', 'points']
+    });
+
+    // Recent 5 broadcast jobs
+    const recentBroadcasts = await BroadcastJob.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+      attributes: ['id', 'message', 'status', 'job_type', 'sent_count', 'failed_count', 'createdAt']
+    });
+
+    // Recent 5 failed messages
+    const recentFailed = await FailedMessage.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 5,
+      attributes: ['id', 'phone_number', 'channel', 'error_code', 'error_message', 'createdAt']
+    });
+
+    // WhatsApp users count
+    const whatsappUsers = await User.count({ where: { role: 'user', phone_number: { [Op.ne]: null } } });
+    const telegramUsers = await User.count({ where: { role: 'user', telegram_id: { [Op.ne]: null } } });
+
+    res.json({
+      summary: {
+        totalUsers,
+        registeredUsers,
+        whatsappUsers,
+        telegramUsers,
+        totalMessages,
+        messagesThisWeek,
+        totalBroadcasts,
+        completedBroadcasts,
+        failedThisWeek,
+        totalFailed,
+        totalQuizAttempts
+      },
+      channelBreakdown,
+      topUsers,
+      recentBroadcasts,
+      recentFailed
+    });
+  } catch (error) {
+    console.error('Error getting system analytics:', error);
+    res.status(500).json({ message: 'Error occurred while retrieving system analytics' });
   }
 };
 

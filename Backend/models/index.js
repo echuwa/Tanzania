@@ -6,6 +6,8 @@ const QuizAttempt = require('./QuizAttempt');
 const ChatLog = require('./ChatLog');
 const DailyStory = require('./DailyStory');
 const FailedMessage = require('./FailedMessage');
+const UssdSession = require('./UssdSession');
+const BroadcastJob = require('./BroadcastJob');
 
 // Define relationships
 
@@ -33,5 +35,7 @@ module.exports = {
   QuizAttempt,
   ChatLog,
   DailyStory,
-  FailedMessage
+  FailedMessage,
+  UssdSession,
+  BroadcastJob
 };

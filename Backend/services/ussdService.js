@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { User, Module, Question, DailyStory, QuizAttempt } = require('../models');
+const { User, Module, Question, DailyStory, QuizAttempt, UssdSession } = require('../models');
 
 // ============================================================
 //  MUUNGANO WETU AI — USSD Service
@@ -18,11 +18,6 @@ const { User, Module, Question, DailyStory, QuizAttempt } = require('../models')
 //
 //  USSD character limit: ~182 chars per response page
 // ============================================================
-
-// Active USSD quiz sessions stored in memory
-// Key: sessionId, Value: { moduleId, questions, currentIndex, score }
-// NOTE: For multi-server production, move this to Redis
-const ussdQuizSessions = new Map();
 
 /**
  * Truncate text to fit USSD limit while keeping it readable
@@ -69,7 +64,7 @@ async function handleUSSD(sessionId, phoneNumber, text) {
 
     // ── OPTION 0: Exit ────────────────────────────────────────
     if (choice1 === '0') {
-      ussdQuizSessions.delete(sessionId);
+      await UssdSession.destroy({ where: { id: sessionId } });
       return 'END Asante kwa kutumia MUUNGANO WETU AI! 🇹🇿\nEndelea kujifunza historia ya Taifa letu!';
     }
 
@@ -119,25 +114,30 @@ async function handleUSSD(sessionId, phoneNumber, text) {
         // Show first question
         const q = questions[0];
         // Store session
-        ussdQuizSessions.set(sessionId, {
-          moduleId: chosenModule.id,
-          moduleName: chosenModule.title,
-          questions: questions.map(q => ({
-            id: q.id,
-            text: q.question_text,
-            options: q.options,
-            correct: q.correct_option,
-            points: q.points
-          })),
-          currentIndex: 0,
-          score: 0
+        await UssdSession.upsert({
+          id: sessionId,
+          phone_number: phone,
+          session_data: {
+            moduleId: chosenModule.id,
+            moduleName: chosenModule.title,
+            questions: questions.map(q => ({
+              id: q.id,
+              text: q.question_text,
+              options: q.options,
+              correct: q.correct_option,
+              points: q.points
+            })),
+            currentIndex: 0,
+            score: 0
+          }
         });
 
         return buildQuestionMenu(q, 0, questions.length);
       }
 
       // User is answering questions (depth >= 3)
-      const session = ussdQuizSessions.get(sessionId);
+      const sessionRecord = await UssdSession.findByPk(sessionId);
+      const session = sessionRecord ? sessionRecord.session_data : null;
       if (!session) {
         // Session lost — restart
         return buildMainMenu();
@@ -163,6 +163,12 @@ async function handleUSSD(sessionId, phoneNumber, text) {
       let isCorrect = userAnswerIndex === q.correct;
       if (isCorrect) session.score += q.points;
 
+      // Save updated session to database
+      await UssdSession.update(
+        { session_data: session },
+        { where: { id: sessionId } }
+      );
+
       // Move to next question or finish
       const nextIndex = answerIndex + 1;
 
@@ -174,7 +180,7 @@ async function handleUSSD(sessionId, phoneNumber, text) {
       } else {
         // Quiz complete!
         const finalScore = session.score;
-        ussdQuizSessions.delete(sessionId);
+        await UssdSession.destroy({ where: { id: sessionId } });
 
         // Save to DB in background
         try {
