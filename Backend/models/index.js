@@ -8,6 +8,7 @@ const DailyStory = require('./DailyStory');
 const FailedMessage = require('./FailedMessage');
 const UssdSession = require('./UssdSession');
 const BroadcastJob = require('./BroadcastJob');
+const SystemSetting = require('./SystemSetting');
 
 // Define relationships
 
@@ -37,5 +38,6 @@ module.exports = {
   DailyStory,
   FailedMessage,
   UssdSession,
-  BroadcastJob
+  BroadcastJob,
+  SystemSetting
 };

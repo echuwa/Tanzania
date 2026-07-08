@@ -2,10 +2,11 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { Op } = require('sequelize');
-const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, FailedMessage, sequelize } = require('../models');
+const { User, Module, Question, DailyStory, ChatLog, QuizAttempt, FailedMessage, SystemSetting, sequelize } = require('../models');
 const whatsappService = require('../services/whatsappService');
 const { sendPasswordResetEmail, sendAdminWelcomeEmail, sendAdminInviteEmail } = require('../services/emailService');
 const jobProcessor = require('../services/jobProcessor');
+const liveService = require('../services/liveService');
 
 // 1. Admin Login
 exports.login = async (req, res) => {
@@ -336,8 +337,11 @@ exports.getUsers = async (req, res) => {
   try {
     const users = await User.findAll({
       where: { role: 'user' },
-      order: [['points', 'DESC']],
-      attributes: ['id', 'full_name', 'phone_number', 'telegram_id', 'points', 'createdAt']
+      order: [
+        ['last_active_at', 'DESC'],
+        ['points', 'DESC']
+      ],
+      attributes: ['id', 'full_name', 'phone_number', 'telegram_id', 'points', 'createdAt', 'last_active_at']
     });
     res.json(users);
   } catch (error) {
@@ -510,12 +514,32 @@ exports.deleteChatLog = async (req, res) => {
   }
 };
 
+// 16b. Get Chat Logs List
+exports.getChatLogs = async (req, res) => {
+  try {
+    const logs = await ChatLog.findAll({
+      order: [['createdAt', 'DESC']],
+      limit: 100,
+      include: [
+        {
+          model: User,
+          attributes: ['full_name', 'phone_number']
+        }
+      ]
+    });
+    res.json(logs);
+  } catch (error) {
+    console.error('Error fetching chat logs:', error);
+    res.status(500).json({ message: 'Error occurred while retrieving chat logs' });
+  }
+};
+
 // 17. Get All Admin Users
 exports.getAdmins = async (req, res) => {
   try {
     const admins = await User.findAll({
-      where: { role: 'admin' },
-      attributes: ['id', 'full_name', 'email', 'phone_number', 'createdAt'],
+      where: { role: ['admin', 'superadmin'] },
+      attributes: ['id', 'full_name', 'email', 'phone_number', 'role', 'createdAt'],
       order: [['createdAt', 'DESC']]
     });
     res.json(admins);
@@ -527,7 +551,7 @@ exports.getAdmins = async (req, res) => {
 
 // 18. Register / Invite a New Admin User
 exports.createAdmin = async (req, res) => {
-  const { full_name, email, phone_number } = req.body;
+  const { full_name, email, phone_number, role } = req.body;
 
   if (!full_name || !email) {
     return res.status(400).json({ message: 'Please fill in Full Name and Email' });
@@ -556,7 +580,7 @@ exports.createAdmin = async (req, res) => {
       full_name,
       email,
       phone_number: phone_number || null,
-      role: 'admin',
+      role: role || 'admin',
       is_registered: false,
       is_verified: false,
       verification_token: token,
@@ -744,7 +768,12 @@ exports.updateProfile = async (req, res) => {
   const { full_name, email, phone_number, current_password, new_password } = req.body;
 
   try {
-    const admin = await User.findOne({ where: { id: adminId, role: 'admin' } });
+    const admin = await User.findOne({
+      where: {
+        id: adminId,
+        role: { [Op.in]: ['admin', 'superadmin'] }
+      }
+    });
     if (!admin) {
       return res.status(404).json({ message: 'Administrator account not found' });
     }
@@ -905,6 +934,23 @@ exports.deleteUser = async (req, res) => {
   }
 };
 
+// 25b. Reset User points to 0
+exports.resetUserPoints = async (req, res) => {
+  const { id } = req.params;
+  try {
+    const user = await User.findOne({ where: { id, role: 'user' } });
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    user.points = 0;
+    await user.save();
+    res.json({ message: `Points for user "${user.full_name || user.phone_number}" reset to 0. ✅` });
+  } catch (error) {
+    console.error('Error resetting points:', error);
+    res.status(500).json({ message: 'Error occurred while resetting user points' });
+  }
+};
+
 // 26. Delete a Failed Message log entry
 exports.deleteFailedMessage = async (req, res) => {
   const { id } = req.params;
@@ -1030,6 +1076,80 @@ exports.getSystemAnalytics = async (req, res) => {
   } catch (error) {
     console.error('Error getting system analytics:', error);
     res.status(500).json({ message: 'Error occurred while retrieving system analytics' });
+  }
+};
+
+// 30. Get System Settings
+exports.getSettings = async (req, res) => {
+  try {
+    const settings = await SystemSetting.findAll();
+    res.json(settings);
+  } catch (error) {
+    console.error('Error fetching settings:', error);
+    res.status(500).json({ message: 'Error retrieving system settings' });
+  }
+};
+
+// 31. Update System Settings
+exports.updateSettings = async (req, res) => {
+  const { settings } = req.body; // Array of { key, value }
+  if (!settings || !Array.isArray(settings)) {
+    return res.status(400).json({ message: 'Invalid settings payload' });
+  }
+
+  try {
+    for (const item of settings) {
+      await SystemSetting.upsert({
+        key: item.key,
+        value: item.value
+      });
+    }
+    
+    // Clear dynamic prompt cache if present
+    const aiService = require('../services/aiService');
+    if (aiService.clearPromptCache) {
+      aiService.clearPromptCache();
+    }
+    
+    res.json({ message: 'Settings updated successfully' });
+  } catch (error) {
+    console.error('Error updating settings:', error);
+    res.status(500).json({ message: 'Error updating system settings' });
+  }
+};
+
+// 27. Stream live chats to admin dashboard via SSE
+exports.getLiveChatsStream = (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  liveService.addClient(res);
+
+  req.on('close', () => {
+    liveService.removeClient(res);
+  });
+};
+
+// 28. Get Chat History for a specific user (chronological thread)
+exports.getUserChatHistory = async (req, res) => {
+  const { userId } = req.params;
+  try {
+    const history = await ChatLog.findAll({
+      where: { user_id: userId },
+      order: [['createdAt', 'ASC']],
+      include: [
+        {
+          model: User,
+          attributes: ['full_name', 'phone_number', 'telegram_id']
+        }
+      ]
+    });
+    res.json(history);
+  } catch (error) {
+    console.error('Error fetching user chat history:', error);
+    res.status(500).json({ message: 'Error retrieving user chat history' });
   }
 };
 

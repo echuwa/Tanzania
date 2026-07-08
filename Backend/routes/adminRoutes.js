@@ -24,9 +24,10 @@ router.post('/verify-invite', adminController.verifyInvite);
 // Dashboard Stats
 router.get('/stats', verifyToken, isAdmin, adminController.getStats);
 
-// Users (students) — Standard sub-admin only
-router.get('/users', verifyToken, isAdmin, isAdminOnly, adminController.getUsers);
-router.delete('/users/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteUser);
+// Users (students) — Viewable and manageable by both admins
+router.get('/users', verifyToken, isAdmin, adminController.getUsers);
+router.delete('/users/:id', verifyToken, isAdmin, adminController.deleteUser);
+router.post('/users/:id/reset-points', verifyToken, isAdmin, adminController.resetUserPoints);
 
 // Quiz / Module Management — Super admin only
 router.get('/quizzes', verifyToken, isAdmin, isSuperAdminOnly, adminController.getQuizzes);
@@ -47,19 +48,22 @@ router.get('/analytics', verifyToken, isAdmin, adminController.getAnalytics);
 // System Analytics — new real-data dashboard
 router.get('/system-analytics', verifyToken, isAdmin, adminController.getSystemAnalytics);
 
-// Broadcast — Send WhatsApp/SMS message to all users (Standard sub-admin only)
-router.post('/broadcast', verifyToken, isAdmin, isAdminOnly, adminController.broadcastMessage);
+// Broadcast — Send WhatsApp/SMS message to all users
+router.post('/broadcast', verifyToken, isAdmin, adminController.broadcastMessage);
 
 // Broadcast Jobs — list and delete
-router.get('/broadcast-jobs', verifyToken, isAdmin, isAdminOnly, adminController.getBroadcastJobs);
-router.delete('/broadcast-jobs/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteBroadcastJob);
+router.get('/broadcast-jobs', verifyToken, isAdmin, adminController.getBroadcastJobs);
+router.delete('/broadcast-jobs/:id', verifyToken, isAdmin, adminController.deleteBroadcastJob);
 
-// Failed Messages Log (Standard sub-admin only)
-router.get('/failed-messages', verifyToken, isAdmin, isAdminOnly, adminController.getFailedMessages);
-router.delete('/failed-messages/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteFailedMessage);
+// Failed Messages Log
+router.get('/failed-messages', verifyToken, isAdmin, adminController.getFailedMessages);
+router.delete('/failed-messages/:id', verifyToken, isAdmin, adminController.deleteFailedMessage);
 
-// Delete Chat Log (Standard sub-admin only)
-router.delete('/chat-logs/:id', verifyToken, isAdmin, isAdminOnly, adminController.deleteChatLog);
+// Chat Logs
+router.get('/chat-logs', verifyToken, isAdmin, adminController.getChatLogs);
+router.delete('/chat-logs/:id', verifyToken, isAdmin, adminController.deleteChatLog);
+router.get('/chat-logs/user/:userId', verifyToken, isAdmin, adminController.getUserChatHistory);
+router.get('/live-chats', verifyToken, isAdmin, adminController.getLiveChatsStream);
 
 // Admin Management — Super admin only
 router.get('/admins', verifyToken, isAdmin, isSuperAdminOnly, adminController.getAdmins);
@@ -68,5 +72,9 @@ router.delete('/admins/:id', verifyToken, isAdmin, isSuperAdminOnly, adminContro
 
 // Admin Profile — self-update (name, email, phone, password)
 router.put('/profile', verifyToken, isAdmin, adminController.updateProfile);
+
+// System Settings — Viewable by admins, editable by superadmins only
+router.get('/settings', verifyToken, isAdmin, adminController.getSettings);
+router.put('/settings', verifyToken, isAdmin, isSuperAdminOnly, adminController.updateSettings);
 
 module.exports = router;

@@ -4,7 +4,7 @@ const chatbotController = require('../controllers/chatbotController');
 
 // WhatsApp Webhook GET (verification) and POST (messages)
 router.get('/webhooks/whatsapp', chatbotController.handleWhatsAppWebhook);
-router.post('/webhooks/whatsapp', chatbotController.handleWhatsAppWebhook);
+router.post('/webhooks/whatsapp', chatbotController.verifyWhatsAppSignature, chatbotController.handleWhatsAppWebhook);
 
 // Telegram Webhook POST
 router.post('/webhooks/telegram', chatbotController.handleTelegramWebhook);

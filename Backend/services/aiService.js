@@ -13,9 +13,34 @@ const SYSTEM_PROMPT =
   "Your primary goal is to educate the youth about the history of the Union of Tanganyika and Zanzibar (officially formed on April 26, 1964), its prominent founders (Mwalimu Julius Nyerere and Mzee Abeid Amani Karume), its importance and benefits, the Articles of Union, and its current progress. " +
   "Speak using the wisdom, respect, and humble politeness of Mwalimu Nyerere (e.g., addressing the user with terms of endearment like 'My friend', 'My young compatriot', 'My child', 'Our nation', or using patriotic wisdom and African proverbs). " +
   "If the user disagrees, says 'NO...', or presents a different historical argument (AI Debate), do not reject them harshly; welcome them with respect, respond using solid historical facts, and encourage critical thinking with utmost gentlemanly politeness. " +
-  "Respond in clean, clear, and engaging English (strictly keep it between 80-150 words). " +
+  "Detect the language of the user's message. If they message you in Kiswahili, you MUST respond in fluent, grammatically correct Kiswahili using the unique Persona of Mwalimu Nyerere. If they message you in English, respond in fluent English. Do not mix languages unless quoting standard Swahili proverbs. Always restrict your response to 80-150 words. " +
   "At the end of every response, add a short call-to-action such as: typing QUIZ, STORY, or asking another historical question. " +
-  "Do not state false historical facts. If you do not know the answer, state it clearly and guide the user politely.";
+  "Do not state false historical facts. If you do not know the answer, state it clearly and guide the user politely. " +
+  "Be extremely factual and historical. Do not make up facts, dates, or names under any circumstances. If the user asks a question unrelated to Tanzania history or the Union, steer them back politely to the Union topic. Stick strictly to verified historical records of the United Republic of Tanzania.";
+
+let cachedSystemPrompt = null;
+
+async function getDynamicSystemPrompt() {
+  if (cachedSystemPrompt) {
+    return cachedSystemPrompt;
+  }
+  try {
+    const { SystemSetting } = require('../models');
+    const setting = await SystemSetting.findOne({ where: { key: 'SYSTEM_PROMPT' } });
+    if (setting && setting.value) {
+      cachedSystemPrompt = setting.value;
+      return cachedSystemPrompt;
+    }
+  } catch (err) {
+    console.error('[AI Service] Failed to retrieve system prompt from database:', err.message);
+  }
+  return SYSTEM_PROMPT;
+}
+
+function clearPromptCache() {
+  console.log('[AI Service] System prompt cache cleared.');
+  cachedSystemPrompt = null;
+}
 
 // ─────────────────────────────────────────────
 //  Pre-seeded facts for Tier 3 (offline engine)
@@ -59,10 +84,12 @@ const HISTORICAL_FACTS = [
 ];
 
 /**
- * Tier 3: Local offline keyword fallback
+ * Tier 3: Local offline database-driven fallback search
  */
-function getLocalFallbackResponse(message) {
+async function getLocalFallbackResponse(message) {
   const cleanMsg = message.toLowerCase().trim();
+
+  // 1. Static keywords matching
   for (const fact of HISTORICAL_FACTS) {
     for (const keyword of fact.keywords) {
       if (cleanMsg.includes(keyword)) {
@@ -70,12 +97,64 @@ function getLocalFallbackResponse(message) {
       }
     }
   }
+
+  // 2. Database search fallback
+  try {
+    const { DailyStory, Question } = require('../models');
+    const { Op } = require('sequelize');
+
+    // Look for matching daily stories
+    const matchingStory = await DailyStory.findOne({
+      where: {
+        [Op.or]: [
+          { title: { [Op.iLike]: `%${cleanMsg}%` } },
+          { content: { [Op.iLike]: `%${cleanMsg}%` } }
+        ]
+      },
+      order: [['publish_date', 'DESC']]
+    });
+
+    if (matchingStory) {
+      return (
+        `📚 *[Muungano Wetu Offline - Story Found]*\n\n` +
+        `*${matchingStory.title}*\n` +
+        `${matchingStory.content.substring(0, 350)}${matchingStory.content.length > 350 ? '...' : ''}\n\n` +
+        `_Note: We are operating in offline fallback mode. Type QUIZ or STORY to play._`
+      );
+    }
+
+    // Look for matching quiz questions
+    const matchingQuestion = await Question.findOne({
+      where: {
+        question_text: { [Op.iLike]: `%${cleanMsg}%` }
+      },
+      order: [['id', 'DESC']]
+    });
+
+    if (matchingQuestion) {
+      const optionsText = matchingQuestion.options && Array.isArray(matchingQuestion.options)
+        ? matchingQuestion.options.map((opt, i) => `${String.fromCharCode(65 + i)}. ${opt}`).join('\n')
+        : '';
+      return (
+        `🎯 *[Muungano Wetu Offline - Quiz Question Found]*\n\n` +
+        `${matchingQuestion.question_text}\n\n` +
+        `${optionsText}\n\n` +
+        `_Note: We are operating in offline fallback mode. Type QUIZ or STORY to play._`
+      );
+    }
+  } catch (dbErr) {
+    console.error('[AI Service] Offline DB search failed:', dbErr.message);
+  }
+
+  // 3. Absolute fallback response
   return (
-    'Thank you for your question, my young compatriot! 🇹🇿 Regarding the history of our Union:\n\n' +
-    'Our founders Mwalimu Nyerere and Mzee Karume united our countries on *April 26, 1964* ' +
-    'to safeguard our freedom and foster permanent brotherhood.\n\n' +
-    'You can:\n🎯 Type *QUIZ* to start a trivia game\n📚 Type *STORY* to read today\'s lesson\n' +
-    'Or ask me a specific question, such as: "Who signed the Union?"'
+    'Ndugu mwananchi, habari! 🇹🇿 Kuhusu historia ya Muungano wetu:\n\n' +
+    'Waasisi wetu Mwalimu Nyerere na Mzee Karume waliunganisha nchi zetu tarehe *26 Aprili 1964* ' +
+    'ili kudumisha amani na udugu wetu wa kudumu.\n\n' +
+    'Kwa sasa mifumo ya AI ipo offline, unaweza kuendelea kwa:\n' +
+    '🎯 Kuandika *QUIZ* ili kuanza chemsha bongo\n' +
+    '📚 Kuandika *STORY* ili kusoma hadithi ya leo ya kihistoria\n' +
+    'Au uliza swali lingine la kihistoria!'
   );
 }
 
@@ -86,8 +165,10 @@ async function getGroqResponse(userMessage, contextHistory = []) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY not set');
 
+  const systemPrompt = await getDynamicSystemPrompt();
+
   // Build OpenAI-compatible messages array
-  const messages = [{ role: 'system', content: SYSTEM_PROMPT }];
+  const messages = [{ role: 'system', content: systemPrompt }];
 
   contextHistory.forEach(log => {
     messages.push({ role: 'user', content: log.message_text });
@@ -108,7 +189,7 @@ async function getGroqResponse(userMessage, contextHistory = []) {
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
       messages,
-      temperature: 0.7,
+      temperature: 0.2,
       max_tokens: 400,
       stream: false
     })
@@ -134,6 +215,7 @@ async function getGeminiResponse(userMessage, contextHistory = []) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+  const systemPrompt = await getDynamicSystemPrompt();
 
   const contents = [];
   contextHistory.forEach(log => {
@@ -151,8 +233,8 @@ async function getGeminiResponse(userMessage, contextHistory = []) {
     signal: controller.signal,
     body: JSON.stringify({
       contents,
-      systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-      generationConfig: { temperature: 0.7, maxOutputTokens: 400 }
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      generationConfig: { temperature: 0.2, maxOutputTokens: 400 }
     })
   });
   clearTimeout(timeoutId);
@@ -198,7 +280,7 @@ async function getAIResponse(userMessage, contextHistory = []) {
 
   // ── Tier 3: Local offline engine ─────────────────────────
   console.log('[AI Service] 🔄 Using Local Offline Fallback Engine.');
-  return getLocalFallbackResponse(userMessage);
+  return await getLocalFallbackResponse(userMessage);
 }
 
-module.exports = { getAIResponse };
+module.exports = { getAIResponse, clearPromptCache };

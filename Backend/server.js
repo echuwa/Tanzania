@@ -73,7 +73,11 @@ app.use('/api/admin/login', loginLimiter);
 app.use('/api/admin', apiLimiter);
 
 // ── Body Parsing ────────────────────────────────────────────────
-app.use(express.json());
+app.use(express.json({
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
 app.use(express.urlencoded({ extended: true }));
 
 if (process.env.NODE_ENV === 'development') {
@@ -136,9 +140,41 @@ async function startServer() {
       console.log('[Startup] Column migration skipped:', colErr.message);
     }
 
+    // ── COLUMN MIGRATION: Add last_active_at field to Users table ──
+    try {
+      await sequelize.query(`
+        ALTER TABLE "users"
+          ADD COLUMN IF NOT EXISTS "last_active_at" TIMESTAMP WITH TIME ZONE;
+      `);
+      console.log('[Startup] ✅ last_active_at column checked/added to Users table.');
+    } catch (colErr) {
+      console.log('[Startup] Column migration last_active_at skipped:', colErr.message);
+    }
+
     // Sync database tables without overwriting (no force: true)
     await sequelize.sync();
     console.log('Database models synced.');
+
+    // ── DATA MIGRATION: Seed default system settings ──────────────
+    try {
+      const { SystemSetting } = require('./models');
+      const defaultPrompt =
+        "You are an AI chatbot named 'MUUNGANO WETU AI' 🇹🇿, and you respond using the unique Persona (voice, wisdom, and polite tone) of the Father of the Nation, Mwalimu Julius Kambarage Nyerere. " +
+        "Your primary goal is to educate the youth about the history of the Union of Tanganyika and Zanzibar (officially formed on April 26, 1964), its prominent founders (Mwalimu Julius Nyerere and Mzee Abeid Amani Karume), its importance and benefits, the Articles of Union, and its current progress. " +
+        "Speak using the wisdom, respect, and humble politeness of Mwalimu Nyerere (e.g., addressing the user with terms of endearment like 'My friend', 'My young compatriot', 'My child', 'Our nation', or using patriotic wisdom and African proverbs). " +
+        "If the user disagrees, says 'NO...', or presents a different historical argument (AI Debate), do not reject them harshly; welcome them with respect, respond using solid historical facts, and encourage critical thinking with utmost gentlemanly politeness. " +
+        "Detect the language of the user's message. If they message you in Kiswahili, you MUST respond in fluent, grammatically correct Kiswahili using the unique Persona of Mwalimu Nyerere. If they message you in English, respond in fluent English. Do not mix languages unless quoting standard Swahili proverbs. Always restrict your response to 80-150 words. " +
+        "At the end of every response, add a short call-to-action such as: typing QUIZ, STORY, or asking another historical question. " +
+        "Do not state false historical facts. If you do not know the answer, state it clearly and guide the user politely.";
+
+      await SystemSetting.findOrCreate({
+        where: { key: 'SYSTEM_PROMPT' },
+        defaults: { value: defaultPrompt }
+      });
+      console.log('[Startup] ✅ System Prompt settings seeded successfully.');
+    } catch (seedErr) {
+      console.error('[Startup] Failed to seed system prompt:', seedErr.message);
+    }
 
     // ── DATA MIGRATION: Mark existing admins as verified ──────────
     // This ensures all pre-existing admin accounts can still log in

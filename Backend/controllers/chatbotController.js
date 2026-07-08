@@ -1,9 +1,11 @@
+const crypto = require('crypto');
 const { User, Module, Question, DailyStory, ChatLog, QuizAttempt } = require('../models');
 const aiService = require('../services/aiService');
 const whatsappService = require('../services/whatsappService');
 const telegramService = require('../services/telegramService');
 const smsService = require('../services/smsService');
 const ussdService = require('../services/ussdService');
+const liveService = require('../services/liveService');
 
 // ─────────────────────────────────────────────────────────────
 //  FIX 4: Per-user Rate Limiting (Anti-Spam)
@@ -29,12 +31,14 @@ function getSession(user) {
 }
 
 async function setSession(user, sessionData) {
-  user.session_data = sessionData;
+  user.session_data = JSON.parse(JSON.stringify(sessionData));
+  user.changed('session_data', true);
   await user.save();
 }
 
 async function clearSession(user) {
   user.session_data = null;
+  user.changed('session_data', true);
   await user.save();
 }
 
@@ -101,10 +105,10 @@ async function startQuizForModule(user, module) {
 }
 
 /**
- * Main state machine processor
+ * Internal state machine processor
  * Returns the text response that needs to be sent to the user
  */
-async function processMessage(user, messageText, channel) {
+async function generateReplyText(user, messageText, channel) {
   const cleanMsg = messageText.trim().toLowerCase();
 
   // Read session from DB (persists across restarts)
@@ -337,20 +341,98 @@ async function processMessage(user, messageText, channel) {
   recentLogs.reverse();
 
   const aiReply = await aiService.getAIResponse(messageText, recentLogs);
-
-  await ChatLog.create({
-    user_id: user.id,
-    channel,
-    message_text: messageText,
-    response_text: aiReply
-  });
-
   return aiReply;
+}
+
+/**
+ * Main entry point: updates user activity, handles message processing, logs everything, and broadcasts to dashboard.
+ */
+async function processMessage(user, messageText, channel) {
+  try {
+    // 1. Update user active status
+    user.last_active_at = new Date();
+    await user.save();
+  } catch (err) {
+    console.error('Error updating user activity status:', err);
+  }
+
+  // 2. Generate response text
+  const replyText = await generateReplyText(user, messageText, channel);
+
+  try {
+    // 3. Log the interaction
+    const chatLog = await ChatLog.create({
+      user_id: user.id,
+      channel,
+      message_text: messageText,
+      response_text: replyText
+    });
+
+    // 4. Live Broadcast via SSE
+    const enrichedLog = await ChatLog.findByPk(chatLog.id, {
+      include: [
+        {
+          model: User,
+          attributes: ['full_name', 'phone_number']
+        }
+      ]
+    });
+    if (enrichedLog) {
+      liveService.broadcastChatLog(enrichedLog);
+    }
+  } catch (err) {
+    console.error('Error recording chat log or broadcasting live status:', err);
+  }
+
+  return replyText;
 }
 
 // ─────────────────────────────────────────────────────────────
 //  WEBHOOK HANDLERS
 // ─────────────────────────────────────────────────────────────
+
+/**
+ * Middleware to verify WhatsApp X-Hub-Signature-256 header.
+ * Uses WHATSAPP_APP_SECRET to construct HMAC of the raw request body.
+ */
+exports.verifyWhatsAppSignature = (req, res, next) => {
+  // If GET verification challenge, skip signature check
+  if (req.method === 'GET') {
+    return next();
+  }
+
+  const signatureHeader = req.headers['x-hub-signature-256'];
+  const appSecret = process.env.WHATSAPP_APP_SECRET;
+
+  if (!appSecret) {
+    console.warn('[Security] WHATSAPP_APP_SECRET environment variable is missing. Webhook signature check was skipped.');
+    return next();
+  }
+
+  if (!signatureHeader) {
+    console.error('[Security] Missing X-Hub-Signature-256 header. Request rejected.');
+    return res.status(401).send('X-Hub-Signature-256 header missing');
+  }
+
+  try {
+    const parts = signatureHeader.split('=');
+    const signature = parts[1];
+    
+    // Generate HMAC hash from rawBody parsed in server.js
+    const hmac = crypto.createHmac('sha256', appSecret);
+    const expectedSignature = hmac.update(req.rawBody || '').digest('hex');
+
+    if (signature !== expectedSignature) {
+      console.error('[Security] Invalid X-Hub-Signature-256! Signature mismatch.');
+      return res.status(401).send('Signature mismatch');
+    }
+
+    next();
+  } catch (err) {
+    console.error('[Security] Error during WhatsApp webhook signature verification:', err);
+    return res.status(500).send('Signature check error');
+  }
+};
 
 /**
  * Controller webhook for WhatsApp API
