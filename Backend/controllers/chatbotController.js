@@ -121,8 +121,17 @@ async function generateReplyText(user, messageText, channel) {
     if (session && session.state === 'awaiting_name') {
       // User is replying with their name
       const providedName = messageText.trim();
-      if (providedName.length < 2 || providedName.length > 50) {
-        return '⚠️ Please enter your real name (2–50 characters).\n\nWhat is your name? 😊';
+      const lowerName = providedName.toLowerCase();
+      const forbiddenNameWords = [
+        'hello', 'hi', 'hey', 'mambo', 'habari', 'yambo', 'hujambo', 'salamu', 'greetings', 'hellow',
+        'quiz', 'story', 'hadithi', 'leaderboard', 'points', 'pointi', 'help', 'msaada', 'cancel', 'ghairi',
+        '1', '2', '3', '4', '0', 'start', 'anza', 'acha'
+      ];
+
+      const isInvalid = forbiddenNameWords.includes(lowerName) || /^\d+$/.test(providedName);
+
+      if (isInvalid || providedName.length < 2 || providedName.length > 50) {
+        return '⚠️ That name appears to be a greeting, command, or number.\n\nPlease tell me your real name to register! 😊';
       }
       // Save name and mark as registered
       user.full_name = providedName;
@@ -270,13 +279,13 @@ async function generateReplyText(user, messageText, channel) {
     let userAnswerIndex = -1;
     const inputChar = cleanMsg.toUpperCase().trim();
 
-    if (inputChar.startsWith('A')) userAnswerIndex = 0;
-    else if (inputChar.startsWith('B')) userAnswerIndex = 1;
-    else if (inputChar.startsWith('C')) userAnswerIndex = 2;
-    else if (inputChar.startsWith('D')) userAnswerIndex = 3;
+    if (inputChar.startsWith('A') || inputChar === '1') userAnswerIndex = 0;
+    else if (inputChar.startsWith('B') || inputChar === '2') userAnswerIndex = 1;
+    else if (inputChar.startsWith('C') || inputChar === '3') userAnswerIndex = 2;
+    else if (inputChar.startsWith('D') || inputChar === '4') userAnswerIndex = 3;
 
     if (userAnswerIndex === -1) {
-      return `⚠️ Unknown answer. Please type only *A, B, C, or D* to answer this question:\n\n${q.question_text}`;
+      return `⚠️ Unknown answer. Please type only *A, B, C, D* (or *1, 2, 3, 4*) to answer this question:\n\n${q.question_text}`;
     }
 
     let responsePrefix = '';

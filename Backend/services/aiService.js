@@ -42,6 +42,29 @@ function clearPromptCache() {
   cachedSystemPrompt = null;
 }
 
+function getCurrentTimeContext() {
+  const now = new Date();
+  const options = { timeZone: 'Africa/Dar_es_Salaam', hour: 'numeric', minute: '2-digit', hour12: false };
+  const timeString = new Intl.DateTimeFormat('en-GB', options).format(now);
+  const hour = parseInt(timeString.split(':')[0], 10);
+
+  let periodSwahili = 'asubuhi';
+  let periodEnglish = 'morning';
+
+  if (hour >= 12 && hour < 16) {
+    periodSwahili = 'mchana';
+    periodEnglish = 'afternoon';
+  } else if (hour >= 16 && hour < 19) {
+    periodSwahili = 'jioni';
+    periodEnglish = 'evening';
+  } else if (hour >= 19 || hour < 5) {
+    periodSwahili = 'usiku';
+    periodEnglish = 'night';
+  }
+
+  return `\n\n[TIME CONTEXT: Current time in Tanzania (East Africa Time - EAT) is ${timeString}. Time of day is ${periodSwahili} (${periodEnglish}). If you greet the user or mention the time of day, ALWAYS match this exact period: use "${periodSwahili}" for Swahili or "${periodEnglish}" for English. Do NOT say "habari za asubuhi" if it is mchana/jioni/usiku, and do NOT say "good morning" if it is afternoon/evening/night!]`;
+}
+
 // ─────────────────────────────────────────────
 //  Pre-seeded facts for Tier 3 (offline engine)
 // ─────────────────────────────────────────────
@@ -165,7 +188,7 @@ async function getGroqResponse(userMessage, contextHistory = []) {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('GROQ_API_KEY not set');
 
-  const systemPrompt = await getDynamicSystemPrompt();
+  const systemPrompt = (await getDynamicSystemPrompt()) + getCurrentTimeContext();
 
   // Build OpenAI-compatible messages array
   const messages = [{ role: 'system', content: systemPrompt }];
@@ -187,7 +210,7 @@ async function getGroqResponse(userMessage, contextHistory = []) {
     },
     signal: controller.signal,
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages,
       temperature: 0.2,
       max_tokens: 400,
@@ -215,7 +238,7 @@ async function getGeminiResponse(userMessage, contextHistory = []) {
   if (!apiKey) throw new Error('GEMINI_API_KEY not set');
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-  const systemPrompt = await getDynamicSystemPrompt();
+  const systemPrompt = (await getDynamicSystemPrompt()) + getCurrentTimeContext();
 
   const contents = [];
   contextHistory.forEach(log => {
