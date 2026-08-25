@@ -53,7 +53,7 @@ async function getOrCreateUser(identifier, channel) {
     if (!user) {
       user = await User.create({
         telegram_id: identifier,
-        full_name: `Telegram User (${identifier})`,
+        full_name: null,
         role: 'user'
       });
     }
@@ -63,12 +63,26 @@ async function getOrCreateUser(identifier, channel) {
     if (!user) {
       user = await User.create({
         phone_number: identifier,
-        full_name: `Phone User (${identifier})`,
+        full_name: null,
         role: 'user'
       });
     }
   }
   return user;
+}
+
+/**
+ * Detect whether a message is primarily Kiswahili or English
+ * Returns 'sw' for Kiswahili, 'en' for English
+ */
+function detectLanguage(message) {
+  const swahiliWords = ['habari', 'mambo', 'hujambo', 'salamu', 'karibu', 'vipi', 'niaje', 'sasa', 'nzuri',
+    'asante', 'tafadhali', 'samahani', 'ndiyo', 'hapana', 'ndio', 'sijui', 'je', 'na', 'ya', 'wa', 'la',
+    'ni', 'si', 'au', 'kwa', 'katika', 'jina', 'yangu', 'lako', 'yako', 'wetu', 'zako', 'wako',
+    'muungano', 'historia', 'mwalimu', 'nyerere', 'zanzibar', 'tanganyika', 'hadithi', 'swali'];
+  const lowerMsg = message.toLowerCase();
+  const swHits = swahiliWords.filter(w => lowerMsg.includes(w)).length;
+  return swHits >= 1 ? 'sw' : 'en';
 }
 
 /**
@@ -129,34 +143,64 @@ async function generateReplyText(user, messageText, channel) {
       ];
 
       const isInvalid = forbiddenNameWords.includes(lowerName) || /^\d+$/.test(providedName);
+      const lang = session.lang || 'en';
 
       if (isInvalid || providedName.length < 2 || providedName.length > 50) {
-        return '⚠️ That name appears to be a greeting, command, or number.\n\nPlease tell me your real name to register! 😊';
+        return lang === 'sw'
+          ? `⚠️ Jina hilo linaonekana kuwa salamu, amri, au nambari.\n\nTafadhali niambie *jina lako la kweli* ili nikusajili! 😊`
+          : `⚠️ That name appears to be a greeting, command, or number.\n\nPlease tell me your real name to register! 😊`;
       }
+
       // Save name and mark as registered
       user.full_name = providedName;
       user.is_registered = true;
       await clearSession(user);
       await user.save();
+
+      if (lang === 'sw') {
+        return (
+          `🎉 *Karibu sana, ${providedName}!* 🇹🇿\n\n` +
+          `Nimefurahi kukujua, ${providedName}! Mimi ni *MUUNGANO WETU AI* — msaidizi wako wa dijiti wa kujifunza historia ya Tanzania.\n\n` +
+          `Unaweza:\n` +
+          `🎯 Andika *QUIZ* — Cheza chemsha bongo na upate pointi\n` +
+          `📚 Andika *STORY* — Soma hadithi ya kihistoria ya leo\n` +
+          `🏆 Andika *LEADERBOARD* — Tazama orodha ya washindi\n` +
+          `ℹ️ Andika *HELP* — Pata orodha ya amri zote\n\n` +
+          `Au niulize swali lolote kuhusu historia ya Muungano wetu! 😊`
+        );
+      } else {
+        return (
+          `🎉 *Welcome, ${providedName}!* 🇹🇿\n\n` +
+          `Nice to meet you, ${providedName}! I am *MUUNGANO WETU AI* — your digital companion for learning Tanzanian history.\n\n` +
+          `You can:\n` +
+          `🎯 Type *QUIZ* — Play quiz game to earn points\n` +
+          `📚 Type *STORY* — Read today's daily historical story\n` +
+          `🏆 Type *LEADERBOARD* — View the leading scores\n` +
+          `ℹ️ Type *HELP* — Get commands list\n\n` +
+          `Or ask me any question about the Union history! 😊`
+        );
+      }
+    }
+
+    // First-ever message — detect language, greet, and ask for name
+    const lang = detectLanguage(messageText);
+    await setSession(user, { state: 'awaiting_name', lang });
+
+    if (lang === 'sw') {
       return (
-        `🎉 *Welcome, ${providedName}!* 🇹🇿\n\n` +
-        `Nice to meet you! I am *MUUNGANO WETU AI* — your digital assistant for learning Tanzanian history.\n\n` +
-        `You can:\n` +
-        `🎯 Type *QUIZ* — Play quiz game to earn points\n` +
-        `📚 Type *STORY* — Read today's daily historical story\n` +
-        `🏆 Type *LEADERBOARD* — View the leading patriotic youths\n` +
-        `ℹ️ Type *HELP* — Get commands list\n\n` +
-        `Or ask me any question about the Union history! 😊`
+        `🇹🇿 *Karibu MUUNGANO WETU AI!*\n\n` +
+        `Mimi ni chatbot wa elimu wa historia ya Muungano wa Tanzania.\n\n` +
+        `Kabla hatujaanza, *tafadhali niambie jina lako.* 😊\n\n` +
+        `_(Andika jina lako tu, mfano: "Ahmed" au "Amina")_`
+      );
+    } else {
+      return (
+        `🇹🇿 *Welcome to MUUNGANO WETU AI!*\n\n` +
+        `I am an educational chatbot dedicated to the history of the Union of Tanzania.\n\n` +
+        `Before we begin, *please tell me your name.* 😊\n\n` +
+        `_(Type your name only, e.g. "Ahmed" or "Amina")_`
       );
     }
-    // First-ever message — greet and ask for name
-    await setSession(user, { state: 'awaiting_name' });
-    return (
-      `🇹🇿 *Welcome to MUUNGANO WETU AI!*\n\n` +
-      `I am an educational chatbot teaching the history of the Union of Tanzania.\n\n` +
-      `Before we begin, *please tell me your name.* 😊\n\n` +
-      `_(Type your name only, e.g. "Ahmed" or "Amina")_`
-    );
   }
 
 
