@@ -59,13 +59,25 @@ async function getOrCreateUser(identifier, channel) {
     }
   } else {
     // WhatsApp or SMS (identifier is phone number)
-    user = await User.findOne({ where: { phone_number: identifier } });
+    // Normalize: strip leading '+' so '+255...' and '255...' map to the same user
+    const normalizedId = identifier.replace(/^\+/, '');
+    const withPlus = '+' + normalizedId;
+
+    // Try both formats: without + first, then with +
+    user = await User.findOne({ where: { phone_number: normalizedId } })
+        || await User.findOne({ where: { phone_number: withPlus } });
+
     if (!user) {
+      // Always store without + prefix for consistency
       user = await User.create({
-        phone_number: identifier,
+        phone_number: normalizedId,
         full_name: null,
         role: 'user'
       });
+    } else if (user.phone_number !== normalizedId) {
+      // Migrate old '+' format to without '+' for consistency
+      user.phone_number = normalizedId;
+      await user.save();
     }
   }
   return user;
